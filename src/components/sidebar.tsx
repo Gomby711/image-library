@@ -26,6 +26,13 @@ gsap.registerPlugin(useGSAP);
 
 const NAV = [{ href: "/", label: "Library", icon: Images }];
 
+/** TextRoll's per-letter layout doesn't support CSS text-overflow:ellipsis
+ *  (that needs one plain text node), so custom page names — which can be
+ *  arbitrarily long — are pre-truncated here instead of relying on CSS. */
+function truncateLabel(name: string, max = 20): string {
+  return name.length > max ? `${name.slice(0, max - 1)}…` : name;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -266,7 +273,11 @@ export function Sidebar() {
                 className="size-[18px] shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
                 style={{ color: active ? "var(--accent)" : "var(--sidebar-text-muted)" }}
               />
-              {!collapsed && <span className="sidebar-label-in min-w-0 flex-1 truncate">{p.name}</span>}
+              {!collapsed && (
+                <TextRoll className="sidebar-label-in min-w-0 flex-1" title={p.name}>
+                  {truncateLabel(p.name)}
+                </TextRoll>
+              )}
               {!collapsed && (
                 <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
                   <button

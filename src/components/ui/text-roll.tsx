@@ -14,7 +14,10 @@ export const TextRoll: React.FC<{
   children: string;
   className?: string;
   center?: boolean;
-}> = ({ children, className, center = false }) => {
+  /** Full (untruncated) text for a native tooltip — useful when `children`
+   *  has already been shortened with an ellipsis for display. */
+  title?: string;
+}> = ({ children, className, center = false, title }) => {
   const letters = React.useMemo(() => children.split(""), [children]);
 
   function delayFor(i: number) {
@@ -27,13 +30,17 @@ export const TextRoll: React.FC<{
 
   return (
     <span
+      title={title}
       className={cn("relative inline-block overflow-hidden align-bottom", className)}
       // The two absolutely-positioned per-letter copies below can sum to a
       // hair wider than the invisible ghost that sizes this box (per-letter
       // inline-block spans round slightly differently than one continuous
       // text run) — a couple px of right padding stops that drift from
       // clipping the last character against this box's own overflow-hidden.
-      style={{ lineHeight, paddingRight: 3 }}
+      // whiteSpace: nowrap on the wrapper itself (not just each letter) —
+      // without it, a flex-shrunk container lets these letter-boxes wrap
+      // onto a second line, since each is its own independent inline box.
+      style={{ lineHeight, paddingRight: 3, whiteSpace: "nowrap" }}
     >
       <span className="invisible" aria-hidden="true">
         {children}
