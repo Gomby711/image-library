@@ -162,14 +162,33 @@ export function useImages(filters: ImageFilters) {
     [bulkEditTags]
   );
 
-  const deleteImage = React.useCallback(async (id: string) => {
-    const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setItems((prev) => prev.filter((img) => img.id !== id));
-      setTotal((t) => Math.max(0, t - 1));
-    }
-    return res.ok;
-  }, []);
+  // Deletes re-fetch the current page from the server (via refresh()) rather
+  // than just patching `items`/`total` locally. A local-only patch shrinks
+  // the *visible* page without pulling in the next item to backfill it, so
+  // the page would silently show fewer than pageSize images — and total/
+  // pagination could drift out of sync with what the grid actually shows.
+  // Refetching keeps both always correct after any add/delete.
+  const deleteImage = React.useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
+      if (res.ok) await refresh();
+      return res.ok;
+    },
+    [refresh]
+  );
+
+  const bulkDelete = React.useCallback(
+    async (ids: string[]) => {
+      const res = await fetch("/api/images/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (res.ok) await refresh();
+      return res.ok;
+    },
+    [refresh]
+  );
 
   return {
     items,
@@ -180,6 +199,7 @@ export function useImages(filters: ImageFilters) {
     updateImage,
     bulkAddTags,
     bulkRemoveTags,
+    bulkDelete,
     deleteImage,
     previewReorder,
     commitReorder,

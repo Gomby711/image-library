@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Tag, Tags, X } from "lucide-react";
+import { Loader2, Tag, Tags, Trash2, X } from "lucide-react";
 import { useImages } from "@/hooks/use-images";
 import { UploadDropzone } from "@/components/library/upload-dropzone";
 import { Toolbar } from "@/components/library/toolbar";
@@ -46,6 +46,11 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   const cardElRefs = React.useRef<Map<string, HTMLElement>>(new Map());
   const [marquee, setMarquee] = React.useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const dragStartRef = React.useRef<{ x: number; y: number } | null>(null);
+  // Snapshot of whatever was already selected (by individual clicks, or an
+  // earlier drag) before this marquee drag began, so a new drag adds to the
+  // selection instead of replacing it outright.
+  const baseSelectionRef = React.useRef<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = React.useState(false);
 
   const effectivePageSize: PageSize = view === "carousel" || reorderMode ? "all" : pageSize;
   const effectiveSort: SortKey = reorderMode ? "custom" : sort;
@@ -59,6 +64,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     updateImage,
     bulkAddTags,
     bulkRemoveTags,
+    bulkDelete,
     deleteImage,
     previewReorder,
     commitReorder,
@@ -73,6 +79,15 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   React.useEffect(() => {
     setPage(1);
   }, [search, sort, pageSize, lockedTag]);
+
+  // Deleting everything on the last page (or bulk-deleting past the end of
+  // the current page) can leave `page` pointing past the new, smaller page
+  // count — snap back to the last real page instead of showing an empty grid.
+  React.useEffect(() => {
+    if (effectivePageSize === "all") return;
+    const pageCount = Math.max(1, Math.ceil(total / effectivePageSize));
+    if (page > pageCount) setPage(pageCount);
+  }, [total, effectivePageSize, page]);
 
   function toggleReorder() {
     if (reorderMode) {
@@ -111,6 +126,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   // point would silently drift away from where the drag actually began.
   function handleGridMouseDown(e: React.MouseEvent<HTMLDivElement>) {
     if (!selectMode || e.target !== e.currentTarget) return;
+    baseSelectionRef.current = new Set(selectedIds);
     dragStartRef.current = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
     const rect = gridRef.current!.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -152,7 +168,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
         const elBottom = elTop + r.height;
         if (elLeft < right && elRight > left && elTop < bottom && elBottom > top) hit.add(id);
       });
-      setSelectedIds(hit);
+      setSelectedIds(new Set([...baseSelectionRef.current, ...hit]));
     }
 
     // "Giant" selections need to reach content off-screen — while dragging
@@ -210,6 +226,19 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
       setSelectMode(false);
     }
     return ok;
+  }
+
+  async function handleBulkDelete() {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    if (!window.confirm(`Delete ${count} selected image${count === 1 ? "" : "s"}? This can't be undone.`)) return;
+    setBulkDeleting(true);
+    const ok = await bulkDelete(Array.from(selectedIds));
+    setBulkDeleting(false);
+    if (ok) {
+      setSelectedIds(new Set());
+      setSelectMode(false);
+    }
   }
 
   // Union of every tag across the currently-selected images — the removal
@@ -403,6 +432,9 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
             </Button>
             <Button variant="outline" size="sm" onClick={() => setBulkRemoveOpen(true)}>
               <Tags className="size-4" /> Remove tag
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={bulkDeleting}>
+              <Trash2 className="size-4" /> {bulkDeleting ? "Deleting…" : "Delete"}
             </Button>
             <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
               <X className="size-4" /> Clear
