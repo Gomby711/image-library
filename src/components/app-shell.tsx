@@ -8,10 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { cn } from "@/lib/utils";
 
-const NAV = [
-  { href: "/", label: "Library" },
-  { href: "/inventory", label: "Inventory" },
-];
+const NAV = [{ href: "/", label: "Library" }];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

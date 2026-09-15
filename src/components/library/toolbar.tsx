@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Grid3x3, LayoutList, Search, Sparkles } from "lucide-react";
+import { Grid3x3, LayoutList, Move, Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,8 @@ interface ToolbarProps {
   view: ViewMode;
   onViewChange: (value: ViewMode) => void;
   total: number;
+  reorderMode: boolean;
+  onToggleReorder: () => void;
 }
 
 export function Toolbar({
@@ -36,6 +38,8 @@ export function Toolbar({
   view,
   onViewChange,
   total,
+  reorderMode,
+  onToggleReorder,
 }: ToolbarProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -52,7 +56,7 @@ export function Toolbar({
       <div className="flex flex-wrap items-center gap-2">
         <span className="hidden text-xs text-muted-foreground sm:inline">{total} images</span>
 
-        <Select value={sort} onValueChange={(v) => onSortChange(v as SortKey)}>
+        <Select value={sort} onValueChange={(v) => onSortChange(v as SortKey)} disabled={reorderMode}>
           <SelectTrigger className="w-[160px] shrink-0 whitespace-nowrap">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
@@ -61,10 +65,15 @@ export function Toolbar({
             <SelectItem value="date-asc">Oldest first</SelectItem>
             <SelectItem value="type-asc">File type A–Z</SelectItem>
             <SelectItem value="type-desc">File type Z–A</SelectItem>
+            <SelectItem value="custom">Custom order</SelectItem>
           </SelectContent>
         </Select>
 
-        <Select value={String(pageSize)} onValueChange={(v) => onPageSizeChange((v === "all" ? "all" : Number(v)) as PageSize)}>
+        <Select
+          value={String(pageSize)}
+          onValueChange={(v) => onPageSizeChange((v === "all" ? "all" : Number(v)) as PageSize)}
+          disabled={reorderMode}
+        >
           <SelectTrigger className="w-[140px] shrink-0 whitespace-nowrap">
             <SelectValue placeholder="Show" />
           </SelectTrigger>
@@ -77,16 +86,28 @@ export function Toolbar({
         </Select>
 
         <div className="flex items-center rounded-[var(--radius-md)] border border-border bg-surface p-0.5">
-          <ViewButton active={view === "grid"} label="Grid view" onClick={() => onViewChange("grid")}>
+          <ViewButton active={view === "grid"} label="Grid view" onClick={() => onViewChange("grid")} disabled={reorderMode}>
             <Grid3x3 className="size-4" />
           </ViewButton>
-          <ViewButton active={view === "list"} label="List view" onClick={() => onViewChange("list")}>
+          <ViewButton active={view === "list"} label="List view" onClick={() => onViewChange("list")} disabled={reorderMode}>
             <LayoutList className="size-4" />
           </ViewButton>
-          <ViewButton active={view === "carousel"} label="Carousel view" onClick={() => onViewChange("carousel")}>
+          <ViewButton active={view === "carousel"} label="Carousel view" onClick={() => onViewChange("carousel")} disabled={reorderMode}>
             <Sparkles className="size-4" />
           </ViewButton>
         </div>
+
+        {view !== "carousel" && (
+          <Button
+            variant={reorderMode ? "default" : "outline"}
+            size="sm"
+            onClick={onToggleReorder}
+            title="Drag images to set a custom order"
+          >
+            <Move className="size-4" />
+            {reorderMode ? "Done" : "Rearrange"}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -96,11 +117,13 @@ function ViewButton({
   active,
   label,
   onClick,
+  disabled,
   children,
 }: {
   active: boolean;
   label: string;
   onClick: () => void;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -111,6 +134,7 @@ function ViewButton({
       aria-pressed={active}
       title={label}
       onClick={onClick}
+      disabled={disabled}
       className={cn("h-8 w-8", active && "bg-accent text-accent-foreground hover:bg-accent")}
     >
       {children}

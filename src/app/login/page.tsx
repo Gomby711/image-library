@@ -106,12 +106,6 @@ export default function LoginPage() {
           className="h-full w-full object-cover opacity-90"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
-        <div className="absolute bottom-12 left-12 right-12">
-          <p className="font-[var(--font-display)] text-3xl italic leading-tight text-foreground">
-            &ldquo;Every image, in its place.&rdquo;
-          </p>
-          <p className="mt-3 text-sm text-muted-foreground">Asset Library — Private &amp; Secure</p>
-        </div>
       </div>
 
       <div className="flex items-center justify-center px-6 py-16">

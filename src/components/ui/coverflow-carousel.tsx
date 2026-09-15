@@ -280,7 +280,13 @@ export function CoverflowCarousel({
                 role="group"
                 aria-roledescription="slide"
                 aria-label={`${index + 1} of ${count}`}
-                onClick={() => (index === selected ? onSelect?.(slide, index) : goTo(index))}
+                onClick={() => {
+                  // Open on the first click regardless of position — centering
+                  // a card before it opens made every off-center image take
+                  // two clicks, which read as "nothing happening" to users.
+                  if (index !== selected) goTo(index);
+                  onSelect?.(slide, index);
+                }}
                 className={cn(
                   "absolute left-1/2 top-0 aspect-square overflow-hidden rounded-[var(--radius-lg)] bg-surface-2 shadow-[var(--shadow-lg)] will-change-transform cursor-pointer",
                   cardClassName

@@ -5,9 +5,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { ChevronLeft, FolderTree, Images, LibraryBig, LogOut, Plus, X } from "lucide-react";
+import { ChevronLeft, Images, LibraryBig, LogOut, Pencil, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLibraryPages } from "@/hooks/use-library-pages";
+import { TextRoll } from "@/components/ui/text-roll";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,13 +20,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import type { LibraryPageRecord } from "@/lib/types";
 
 gsap.registerPlugin(useGSAP);
 
-const NAV = [
-  { href: "/", label: "Library", icon: Images },
-  { href: "/inventory", label: "Inventory", icon: FolderTree },
-];
+const NAV = [{ href: "/", label: "Library", icon: Images }];
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -35,11 +34,14 @@ export function Sidebar() {
   const [createOpen, setCreateOpen] = React.useState(false);
   const [newName, setNewName] = React.useState("");
   const [creating, setCreating] = React.useState(false);
+  const [renameTarget, setRenameTarget] = React.useState<LibraryPageRecord | null>(null);
+  const [renameValue, setRenameValue] = React.useState("");
+  const [renaming, setRenaming] = React.useState(false);
   const navRef = React.useRef<HTMLElement>(null);
   const indicatorRef = React.useRef<HTMLDivElement>(null);
   const itemRefs = React.useRef<Map<string, HTMLAnchorElement>>(new Map());
 
-  const { pages, createPage, deletePage } = useLibraryPages();
+  const { pages, createPage, renamePage, deletePage } = useLibraryPages();
 
   React.useEffect(() => {
     try {
@@ -115,6 +117,14 @@ export function Sidebar() {
     }
   }
 
+  async function handleRenamePage() {
+    if (!renameTarget || !renameValue.trim()) return;
+    setRenaming(true);
+    await renamePage(renameTarget.id, renameValue.trim());
+    setRenaming(false);
+    setRenameTarget(null);
+  }
+
   async function handleDeletePage(e: React.MouseEvent, id: string) {
     e.preventDefault();
     e.stopPropagation();
@@ -173,35 +183,6 @@ export function Sidebar() {
           className="pointer-events-none absolute left-3 right-3 rounded-[var(--radius-md)]"
           style={{ top: 0, height: 0, opacity: 0, background: "var(--sidebar-active-bg)" }}
         />
-        {!collapsed ? (
-          <div className="relative mb-2 flex items-center justify-between px-3">
-            <p
-              className="sidebar-label-in whitespace-nowrap text-xs font-semibold uppercase tracking-widest"
-              style={{ color: "var(--sidebar-text-muted)" }}
-            >
-              Menu
-            </p>
-            <button
-              onClick={() => setCreateOpen(true)}
-              aria-label="Add library page"
-              title="Add library page"
-              className="rounded p-0.5 transition-colors hover:bg-white/10"
-              style={{ color: "var(--sidebar-text-muted)" }}
-            >
-              <Plus className="size-3.5" />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setCreateOpen(true)}
-            aria-label="Add library page"
-            title="Add library page"
-            className="sidebar-link-hoverable relative mb-1 flex items-center justify-center rounded-[var(--radius-md)] py-2"
-            style={{ color: "var(--sidebar-text-muted)" }}
-          >
-            <Plus className="size-4" />
-          </button>
-        )}
 
         {NAV.map((item) => {
           const active = activeHref === item.href;
@@ -225,7 +206,7 @@ export function Sidebar() {
                 className="size-[18px] shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
                 style={{ color: active ? "var(--accent)" : "var(--sidebar-text-muted)" }}
               />
-              {!collapsed && <span className="sidebar-label-in whitespace-nowrap">{item.label}</span>}
+              {!collapsed && <TextRoll className="sidebar-label-in">{item.label}</TextRoll>}
               {!collapsed && active && (
                 <span className="ml-auto size-1.5 shrink-0 rounded-full" style={{ background: "var(--accent)" }} />
               )}
@@ -233,53 +214,85 @@ export function Sidebar() {
           );
         })}
 
-        {pages.length > 0 && (
-          <>
-            {!collapsed && (
-              <p
-                className="sidebar-label-in relative mb-1 mt-4 whitespace-nowrap px-3 text-xs font-semibold uppercase tracking-widest"
-                style={{ color: "var(--sidebar-text-muted)" }}
-              >
-                My Library Pages
-              </p>
-            )}
-            {pages.map((p) => {
-              const href = `/library/${p.id}`;
-              const active = activeHref === href;
-              return (
-                <Link
-                  key={p.id}
-                  href={href}
-                  ref={(el) => {
-                    if (el) itemRefs.current.set(href, el);
-                  }}
-                  title={collapsed ? p.name : undefined}
-                  className={cn(
-                    "group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2.5 text-sm font-medium transition-colors",
-                    collapsed ? "justify-center px-2" : "px-3",
-                    !active && "sidebar-link-hoverable"
-                  )}
-                  style={{ color: active ? "#ffffff" : "var(--sidebar-text)" }}
-                >
-                  <LibraryBig
-                    className="size-[18px] shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
-                    style={{ color: active ? "var(--accent)" : "var(--sidebar-text-muted)" }}
-                  />
-                  {!collapsed && <span className="sidebar-label-in flex-1 truncate">{p.name}</span>}
-                  {!collapsed && (
-                    <button
-                      onClick={(e) => handleDeletePage(e, p.id)}
-                      aria-label={`Remove ${p.name}`}
-                      className="rounded p-0.5 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  )}
-                </Link>
-              );
-            })}
-          </>
+        {!collapsed ? (
+          <div className="relative mb-1 mt-4 flex items-center justify-between px-3">
+            <p
+              className="sidebar-label-in whitespace-nowrap text-xs font-semibold uppercase tracking-widest"
+              style={{ color: "var(--sidebar-text-muted)" }}
+            >
+              My Library Pages
+            </p>
+            <button
+              onClick={() => setCreateOpen(true)}
+              aria-label="Add library page"
+              title="Add library page"
+              className="rounded p-0.5 transition-colors hover:bg-white/10"
+              style={{ color: "var(--sidebar-text-muted)" }}
+            >
+              <Plus className="size-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setCreateOpen(true)}
+            aria-label="Add library page"
+            title="Add library page"
+            className="sidebar-link-hoverable relative mb-1 mt-2 flex items-center justify-center rounded-[var(--radius-md)] py-2"
+            style={{ color: "var(--sidebar-text-muted)" }}
+          >
+            <Plus className="size-4" />
+          </button>
         )}
+
+        {pages.map((p) => {
+          const href = `/library/${p.id}`;
+          const active = activeHref === href;
+          return (
+            <Link
+              key={p.id}
+              href={href}
+              ref={(el) => {
+                if (el) itemRefs.current.set(href, el);
+              }}
+              title={collapsed ? p.name : undefined}
+              className={cn(
+                "group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2.5 text-sm font-medium transition-colors",
+                collapsed ? "justify-center px-2" : "px-3",
+                !active && "sidebar-link-hoverable"
+              )}
+              style={{ color: active ? "#ffffff" : "var(--sidebar-text)" }}
+            >
+              <LibraryBig
+                className="size-[18px] shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
+                style={{ color: active ? "var(--accent)" : "var(--sidebar-text-muted)" }}
+              />
+              {!collapsed && <span className="sidebar-label-in min-w-0 flex-1 truncate">{p.name}</span>}
+              {!collapsed && (
+                <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setRenameTarget(p);
+                      setRenameValue(p.name);
+                    }}
+                    aria-label={`Rename ${p.name}`}
+                    className="rounded p-0.5 hover:bg-white/10"
+                  >
+                    <Pencil className="size-3" />
+                  </button>
+                  <button
+                    onClick={(e) => handleDeletePage(e, p.id)}
+                    aria-label={`Remove ${p.name}`}
+                    className="rounded p-0.5 hover:bg-white/10"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="border-t p-3" style={{ borderColor: "var(--sidebar-border)" }}>
@@ -324,6 +337,35 @@ export function Sidebar() {
             </Button>
             <Button onClick={handleCreatePage} disabled={creating || !newName.trim()}>
               {creating ? "Creating…" : "Create page"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename library page</DialogTitle>
+            <DialogDescription>
+              Renaming updates the tag too, so images already tagged for this page stay attached.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Label htmlFor="rename-page-name">Page name</Label>
+            <Input
+              id="rename-page-name"
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleRenamePage()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameTarget(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenamePage} disabled={renaming || !renameValue.trim()}>
+              {renaming ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>

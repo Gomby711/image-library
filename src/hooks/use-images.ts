@@ -6,7 +6,6 @@ import type { ImageRecord, PageSize, SortKey } from "@/lib/types";
 export interface ImageFilters {
   search: string;
   sort: SortKey;
-  folderId: string | null; // null = all folders (Library), "root" = unfiled, else a folder id
   tag?: string | null; // exact-match tag lock, used by custom Library Pages
   page: number;
   pageSize: PageSize;
@@ -38,7 +37,6 @@ export function useImages(filters: ImageFilters) {
     params.set("page", String(filters.page));
     params.set("pageSize", String(filters.pageSize));
     if (filters.search) params.set("search", filters.search);
-    if (filters.folderId) params.set("folderId", filters.folderId);
     if (filters.tag) params.set("tag", filters.tag);
     try {
       const res = await fetch(`/api/images?${params.toString()}`);
@@ -48,7 +46,7 @@ export function useImages(filters: ImageFilters) {
     } finally {
       setLoading(false);
     }
-  }, [filters.sort, filters.page, filters.pageSize, filters.search, filters.folderId, filters.tag]);
+  }, [filters.sort, filters.page, filters.pageSize, filters.search, filters.tag]);
 
   React.useEffect(() => {
     refresh();
@@ -118,6 +116,25 @@ export function useImages(filters: ImageFilters) {
     []
   );
 
+  // Live drag feedback: reorders the in-memory list only, no network call —
+  // called on every drag-over so the grid visibly shuffles as you drag.
+  const previewReorder = React.useCallback((newOrderIds: string[]) => {
+    setItems((prev) => {
+      const byId = new Map(prev.map((img) => [img.id, img]));
+      const reordered = newOrderIds.map((id) => byId.get(id)).filter((img): img is ImageRecord => !!img);
+      return reordered.length === prev.length ? reordered : prev;
+    });
+  }, []);
+
+  // Persists the current order to disk — called once on drop, not per drag-over.
+  const commitReorder = React.useCallback((newOrderIds: string[]) => {
+    fetch("/api/images/reorder", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: newOrderIds }),
+    }).catch(() => {});
+  }, []);
+
   const deleteImage = React.useCallback(async (id: string) => {
     const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
     if (res.ok) {
@@ -127,5 +144,5 @@ export function useImages(filters: ImageFilters) {
     return res.ok;
   }, []);
 
-  return { items, total, loading, uploads, upload, updateImage, deleteImage, refresh };
+  return { items, total, loading, uploads, upload, updateImage, deleteImage, previewReorder, commitReorder, refresh };
 }

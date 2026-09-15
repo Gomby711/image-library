@@ -76,6 +76,6 @@ export interface DbShape {
   libraryPages: LibraryPageRecord[];
 }
 
-export type SortKey = "date-desc" | "date-asc" | "type-asc" | "type-desc";
+export type SortKey = "date-desc" | "date-asc" | "type-asc" | "type-desc" | "custom";
 export type ViewMode = "grid" | "list" | "carousel";
 export type PageSize = 12 | 24 | 48 | "all";

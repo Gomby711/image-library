@@ -35,19 +35,23 @@ export async function GET(req: Request) {
     );
   }
 
-  items.sort((a, b) => {
-    switch (sort) {
-      case "date-asc":
-        return new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime();
-      case "type-asc":
-        return a.ext.localeCompare(b.ext) || a.aspect.localeCompare(b.aspect);
-      case "type-desc":
-        return b.ext.localeCompare(a.ext) || b.aspect.localeCompare(a.aspect);
-      case "date-desc":
-      default:
-        return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
-    }
-  });
+  // "custom" means the caller wants db.images' own stored order — the order
+  // the /reorder endpoint writes to when a user drags cards around.
+  if (sort !== "custom") {
+    items.sort((a, b) => {
+      switch (sort) {
+        case "date-asc":
+          return new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime();
+        case "type-asc":
+          return a.ext.localeCompare(b.ext) || a.aspect.localeCompare(b.aspect);
+        case "type-desc":
+          return b.ext.localeCompare(a.ext) || b.aspect.localeCompare(a.aspect);
+        case "date-desc":
+        default:
+          return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
+      }
+    });
+  }
 
   const total = items.length;
   const page = Math.max(1, Number(pageParam) || 1);

@@ -3,8 +3,6 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
 const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/status"];
 
-export const runtime = "nodejs";
-
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 

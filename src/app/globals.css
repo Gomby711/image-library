@@ -130,6 +130,36 @@ body {
   color: oklch(0.72 0.19 25) !important;
 }
 
+/* Text-roll hover (components/ui/text-roll.tsx), ported from the reference
+   app's animated-menu.tsx: current label slides up and out while a second
+   copy slides in from below, staggered per letter. Hand-written rather than
+   a Tailwind arbitrary-value utility so it doesn't depend on the build
+   picking up a one-off class. */
+.text-roll-out {
+  transition: transform 0.15s ease-out;
+  transition-delay: 0s;
+}
+.group:hover .text-roll-out {
+  transform: translateY(-140%);
+  transition: transform 0.3s ease-in-out;
+  transition-delay: var(--roll-delay, 0s);
+}
+.text-roll-in {
+  transform: translateY(140%);
+  transition: transform 0.15s ease-out;
+  transition-delay: 0s;
+}
+.group:hover .text-roll-in {
+  transform: translateY(0);
+  transition: transform 0.3s ease-in-out;
+  transition-delay: var(--roll-delay, 0s);
+}
+@media (prefers-reduced-motion: reduce) {
+  .text-roll-out, .text-roll-in, .group:hover .text-roll-out, .group:hover .text-roll-in {
+    transition: none;
+  }
+}
+
 @keyframes sidebarLabelIn {
   from { opacity: 0; transform: translateX(-4px); }
   to { opacity: 1; transform: translateX(0); }
