@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Grid3x3, LayoutList, Move, Search, Sparkles } from "lucide-react";
+import { CheckSquare, Grid3x3, LayoutList, Move, Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,8 @@ interface ToolbarProps {
   total: number;
   reorderMode: boolean;
   onToggleReorder: () => void;
+  selectMode: boolean;
+  onToggleSelect: () => void;
 }
 
 export function Toolbar({
@@ -40,6 +42,8 @@ export function Toolbar({
   total,
   reorderMode,
   onToggleReorder,
+  selectMode,
+  onToggleSelect,
 }: ToolbarProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -56,7 +60,7 @@ export function Toolbar({
       <div className="flex flex-wrap items-center gap-2">
         <span className="hidden text-xs text-muted-foreground sm:inline">{total} images</span>
 
-        <Select value={sort} onValueChange={(v) => onSortChange(v as SortKey)} disabled={reorderMode}>
+        <Select value={sort} onValueChange={(v) => onSortChange(v as SortKey)} disabled={reorderMode || selectMode}>
           <SelectTrigger className="w-[160px] shrink-0 whitespace-nowrap">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
@@ -72,7 +76,7 @@ export function Toolbar({
         <Select
           value={String(pageSize)}
           onValueChange={(v) => onPageSizeChange((v === "all" ? "all" : Number(v)) as PageSize)}
-          disabled={reorderMode}
+          disabled={reorderMode || selectMode}
         >
           <SelectTrigger className="w-[140px] shrink-0 whitespace-nowrap">
             <SelectValue placeholder="Show" />
@@ -86,18 +90,18 @@ export function Toolbar({
         </Select>
 
         <div className="flex items-center rounded-[var(--radius-md)] border border-border bg-surface p-0.5">
-          <ViewButton active={view === "grid"} label="Grid view" onClick={() => onViewChange("grid")} disabled={reorderMode}>
+          <ViewButton active={view === "grid"} label="Grid view" onClick={() => onViewChange("grid")} disabled={reorderMode || selectMode}>
             <Grid3x3 className="size-4" />
           </ViewButton>
-          <ViewButton active={view === "list"} label="List view" onClick={() => onViewChange("list")} disabled={reorderMode}>
+          <ViewButton active={view === "list"} label="List view" onClick={() => onViewChange("list")} disabled={reorderMode || selectMode}>
             <LayoutList className="size-4" />
           </ViewButton>
-          <ViewButton active={view === "carousel"} label="Carousel view" onClick={() => onViewChange("carousel")} disabled={reorderMode}>
+          <ViewButton active={view === "carousel"} label="Carousel view" onClick={() => onViewChange("carousel")} disabled={reorderMode || selectMode}>
             <Sparkles className="size-4" />
           </ViewButton>
         </div>
 
-        {view !== "carousel" && (
+        {view !== "carousel" && !selectMode && (
           <Button
             variant={reorderMode ? "default" : "outline"}
             size="sm"
@@ -106,6 +110,18 @@ export function Toolbar({
           >
             <Move className="size-4" />
             {reorderMode ? "Done" : "Rearrange"}
+          </Button>
+        )}
+
+        {view !== "carousel" && !reorderMode && (
+          <Button
+            variant={selectMode ? "default" : "outline"}
+            size="sm"
+            onClick={onToggleSelect}
+            title="Select multiple images to tag them all at once"
+          >
+            <CheckSquare className="size-4" />
+            {selectMode ? "Done" : "Select"}
           </Button>
         )}
       </div>

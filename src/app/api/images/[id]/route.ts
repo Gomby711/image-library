@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { IMAGE_DIR, mutateDb } from "@/lib/db";
+import { computeReferenceName } from "@/lib/images";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,6 +13,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!image) return null;
     if (Array.isArray(body.tags)) {
       image.tags = body.tags.filter((t: unknown): t is string => typeof t === "string" && t.trim().length > 0);
+      // "Reference Image" drives an automatic REF_<tag>_<n> filename — recomputed
+      // whenever the tag set changes so a swapped "other tag" or a fresh
+      // "Reference Image" tag both land on the right name.
+      const refName = computeReferenceName(image.tags, image.ext, db.images, image.id);
+      if (refName) image.originalName = refName;
     }
     if ("folderId" in body) {
       image.folderId = body.folderId || null;

@@ -135,6 +135,20 @@ export function useImages(filters: ImageFilters) {
     }).catch(() => {});
   }, []);
 
+  const bulkAddTags = React.useCallback(async (ids: string[], addTags: string[]) => {
+    const res = await fetch("/api/images/bulk-tag", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids, addTags }),
+    });
+    if (res.ok) {
+      const { updated }: { updated: ImageRecord[] } = await res.json();
+      const byId = new Map(updated.map((img) => [img.id, img]));
+      setItems((prev) => prev.map((img) => byId.get(img.id) ?? img));
+    }
+    return res.ok;
+  }, []);
+
   const deleteImage = React.useCallback(async (id: string) => {
     const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
     if (res.ok) {
@@ -144,5 +158,17 @@ export function useImages(filters: ImageFilters) {
     return res.ok;
   }, []);
 
-  return { items, total, loading, uploads, upload, updateImage, deleteImage, previewReorder, commitReorder, refresh };
+  return {
+    items,
+    total,
+    loading,
+    uploads,
+    upload,
+    updateImage,
+    bulkAddTags,
+    deleteImage,
+    previewReorder,
+    commitReorder,
+    refresh,
+  };
 }

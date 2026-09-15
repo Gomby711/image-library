@@ -3,7 +3,13 @@ import { promises as fs } from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
 import { IMAGE_DIR, mutateDb, readDb } from "@/lib/db";
-import { classifyAspect, extensionFromFilename, isAcceptedExtension, mimeForExtension } from "@/lib/images";
+import {
+  classifyAspect,
+  computeReferenceName,
+  extensionFromFilename,
+  isAcceptedExtension,
+  mimeForExtension,
+} from "@/lib/images";
 import { readDimensions } from "@/lib/image-dimensions";
 import type { ImageRecord, SortKey } from "@/lib/types";
 
@@ -116,7 +122,14 @@ export async function POST(req: Request) {
 
   if (created.length > 0) {
     await mutateDb((db) => {
-      db.images.unshift(...created);
+      // Assigned one at a time (not against a snapshot) so two reference
+      // images uploaded in the same batch number sequentially instead of
+      // both claiming "_1".
+      for (const record of created) {
+        const refName = computeReferenceName(record.tags, record.ext, db.images, record.id);
+        if (refName) record.originalName = refName;
+        db.images.unshift(record);
+      }
     });
   }
 
