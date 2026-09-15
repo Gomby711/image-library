@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Fraunces } from "next/font/google";
-import { BootSplash } from "@/components/boot-splash";
+import BootIntro from "@/components/boot-intro";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${geistSans.variable} ${fraunces.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <BootSplash />
+        <BootIntro />
         {children}
       </body>
     </html>
