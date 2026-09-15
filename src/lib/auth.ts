@@ -1,27 +1,25 @@
 import { createHmac, timingSafeEqual } from "crypto";
-import { promises as fs } from "fs";
-import path from "path";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const SESSION_COOKIE = "luminary_session";
 export const SITE_PASSWORD = process.env.LUMINARY_SITE_PASSWORD ?? "Coverking1";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12 hours
 
-const SECRET_PATH = path.join(process.cwd(), "data", ".session-secret");
+const SECRET_KEY = "session-secret";
 let cachedSecret: string | null = null;
 
 async function getSecret(): Promise<string> {
   if (cachedSecret) return cachedSecret;
-  await fs.mkdir(path.dirname(SECRET_PATH), { recursive: true });
-  try {
-    cachedSecret = (await fs.readFile(SECRET_PATH, "utf-8")).trim();
-    if (cachedSecret) return cachedSecret;
-  } catch {
-    // no secret yet
+  const { env } = await getCloudflareContext({ async: true });
+  const existing = await env.DB_KV.get(SECRET_KEY);
+  if (existing) {
+    cachedSecret = existing;
+    return existing;
   }
   const generated = createHmac("sha256", `${Date.now()}-${Math.random()}`)
     .update("luminary")
     .digest("hex");
-  await fs.writeFile(SECRET_PATH, generated);
+  await env.DB_KV.put(SECRET_KEY, generated);
   cachedSecret = generated;
   return generated;
 }

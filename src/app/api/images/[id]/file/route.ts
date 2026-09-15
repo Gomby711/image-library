@@ -1,7 +1,6 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { NextResponse } from "next/server";
-import { IMAGE_DIR, readDb } from "@/lib/db";
+import { readDb } from "@/lib/db";
+import { getImageFile } from "@/lib/r2";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -12,17 +11,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const image = db.images.find((img) => img.id === id);
   if (!image) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const filePath = path.join(IMAGE_DIR, image.filename);
-  const data = await fs.readFile(filePath).catch(() => null);
-  if (!data) return NextResponse.json({ error: "File missing on disk" }, { status: 404 });
+  const file = await getImageFile(image.filename);
+  if (!file) return NextResponse.json({ error: "File missing in storage" }, { status: 404 });
 
   const headers = new Headers({
-    "Content-Type": image.mimeType,
+    "Content-Type": file.contentType ?? image.mimeType,
+    "Content-Length": String(file.size),
     "Cache-Control": "private, max-age=31536000, immutable",
   });
   if (asAttachment) {
     headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(image.originalName)}"`);
   }
 
-  return new NextResponse(data, { headers });
+  return new NextResponse(file.body as unknown as ReadableStream, { headers });
 }

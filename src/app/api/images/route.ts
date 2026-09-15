@@ -1,8 +1,7 @@
 import { randomUUID } from "crypto";
-import { promises as fs } from "fs";
-import path from "path";
 import { NextResponse } from "next/server";
-import { IMAGE_DIR, mutateDb, readDb } from "@/lib/db";
+import { mutateDb, readDb } from "@/lib/db";
+import { putImageFile } from "@/lib/r2";
 import {
   classifyAspect,
   computeReferenceName,
@@ -96,10 +95,8 @@ export async function POST(req: Request) {
 
     const id = randomUUID();
     const filename = `${id}.${ext}`;
-    const destPath = path.join(IMAGE_DIR, filename);
     const buffer = Buffer.from(await file.arrayBuffer());
-    await fs.mkdir(IMAGE_DIR, { recursive: true });
-    await fs.writeFile(destPath, buffer);
+    await putImageFile(filename, buffer, mimeForExtension(ext));
 
     const { width, height } = readDimensions(buffer, ext);
 

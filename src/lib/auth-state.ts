@@ -1,8 +1,6 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const STATE_PATH = path.join(DATA_DIR, "auth-state.json");
+const STATE_KEY = "auth-state";
 
 interface AuthState {
   failedAttempts: number;
@@ -19,18 +17,18 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function readState(): Promise<AuthState> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  const { env } = await getCloudflareContext({ async: true });
   try {
-    const raw = await fs.readFile(STATE_PATH, "utf-8");
-    return { ...EMPTY_STATE, ...JSON.parse(raw) };
+    const raw = await env.DB_KV.get(STATE_KEY);
+    return raw ? { ...EMPTY_STATE, ...JSON.parse(raw) } : { ...EMPTY_STATE };
   } catch {
     return { ...EMPTY_STATE };
   }
 }
 
 async function writeState(state: AuthState): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(STATE_PATH, JSON.stringify(state, null, 2));
+  const { env } = await getCloudflareContext({ async: true });
+  await env.DB_KV.put(STATE_KEY, JSON.stringify(state));
 }
 
 /** Free attempts before any lockout kicks in ("a couple failed attempts"). */

@@ -1,8 +1,7 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { NextResponse } from "next/server";
-import { IMAGE_DIR, mutateDb } from "@/lib/db";
+import { mutateDb } from "@/lib/db";
 import { computeReferenceName } from "@/lib/images";
+import { deleteImageFile } from "@/lib/r2";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -45,7 +44,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!removed) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    await fs.unlink(path.join(IMAGE_DIR, removed.filename));
+    await deleteImageFile(removed.filename);
   } catch {
     // file already gone — metadata removal still succeeds
   }

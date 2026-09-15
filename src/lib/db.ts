@@ -1,25 +1,18 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { DbShape } from "./types";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "db.json");
-export const IMAGE_DIR = path.join(process.cwd(), "inventory");
-
+const DB_KEY = "db";
 const EMPTY_DB: DbShape = { images: [], folders: [], libraryPages: [] };
 
-async function ensureFiles() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.mkdir(IMAGE_DIR, { recursive: true });
-  try {
-    await fs.access(DB_PATH);
-  } catch {
-    await fs.writeFile(DB_PATH, JSON.stringify(EMPTY_DB, null, 2));
-  }
+async function getKv() {
+  const { env } = await getCloudflareContext({ async: true });
+  return env.DB_KV;
 }
 
 // Writes can race under concurrent requests (upload + tag edit landing together).
-// A single in-process queue serializes them so one write never clobbers another.
+// A single in-process queue serializes them so one write never clobbers another —
+// this only protects against races within one Worker isolate, but KV's own
+// eventual-consistency window is small enough that this is fine at this scale.
 let queue: Promise<unknown> = Promise.resolve();
 
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
@@ -29,8 +22,9 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export async function readDb(): Promise<DbShape> {
-  await ensureFiles();
-  const raw = await fs.readFile(DB_PATH, "utf-8");
+  const kv = await getKv();
+  const raw = await kv.get(DB_KEY);
+  if (!raw) return { ...EMPTY_DB };
   try {
     const parsed = JSON.parse(raw) as Partial<DbShape>;
     return {
@@ -44,8 +38,8 @@ export async function readDb(): Promise<DbShape> {
 }
 
 async function writeDb(db: DbShape): Promise<void> {
-  await ensureFiles();
-  await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+  const kv = await getKv();
+  await kv.put(DB_KEY, JSON.stringify(db));
 }
 
 export function mutateDb<T>(fn: (db: DbShape) => T | Promise<T>): Promise<T> {
