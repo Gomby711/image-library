@@ -93,7 +93,7 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imgRef}
-          src={fileUrl(image.id)}
+          src={fileUrl(image)}
           alt={image.originalName}
           className="max-h-full max-w-full rounded-[var(--radius-md)] object-contain shadow-[var(--shadow-lg)]"
         />

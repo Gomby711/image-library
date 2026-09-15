@@ -243,7 +243,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
   const slides: CoverflowSlide[] = items.map((img) => ({
     id: img.id,
-    src: fileUrl(img.id),
+    src: fileUrl(img),
     alt: img.originalName,
     title: img.originalName,
     subtitle: img.tags.join(" · ") || img.aspect,

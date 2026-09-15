@@ -4,7 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { Eye, EyeOff, LibraryBig, Lock } from "lucide-react";
+import { Eye, EyeOff, Lock } from "lucide-react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,8 +112,8 @@ export default function LoginPage() {
       <div className="flex items-center justify-center px-6 py-16">
         <div className="login-panel w-full max-w-sm">
           <div className="mb-8 flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-[var(--radius-md)] bg-accent text-accent-foreground">
-              <LibraryBig className="size-5" />
+            <span className="flex size-9 items-center justify-center overflow-hidden rounded-[var(--radius-md)]">
+              <Image src="/brand/gallery-icon.png" alt="" width={36} height={36} className="size-full object-cover" />
             </span>
             <span className="font-[var(--font-display)] text-xl font-semibold">Asset Library</span>
           </div>

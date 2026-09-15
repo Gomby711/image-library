@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ChevronLeft, Images, LibraryBig, LogOut, Pencil, Plus, X } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useLibraryPages } from "@/hooks/use-library-pages";
 import { TextRoll } from "@/components/ui/text-roll";
@@ -194,8 +195,8 @@ export function Sidebar() {
         )}
         style={{ borderColor: "var(--sidebar-border)" }}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-accent text-accent-foreground">
-          <LibraryBig className="size-[18px]" />
+        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-md)]">
+          <Image src="/brand/gallery-icon.png" alt="" width={32} height={32} className="size-full object-cover" />
         </span>
         {!collapsed && (
           <span className="sidebar-label-in whitespace-nowrap font-[var(--font-display)] text-lg font-semibold text-white">

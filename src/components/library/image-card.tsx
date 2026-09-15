@@ -9,13 +9,19 @@ import { Button } from "@/components/ui/button";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
 import type { ImageRecord } from "@/lib/types";
 
-export function fileUrl(id: string, download = false) {
-  return `/api/images/${id}/file${download ? "?download=1" : ""}`;
+/** Passing `ext` lets the file route build the R2 key (`${id}.${ext}`)
+ *  directly and skip reading/parsing the whole library DB just to serve
+ *  thumbnail bytes — the thing that was making every grid page slow and,
+ *  under load, tripping Cloudflare's per-request CPU limit (error 1102). */
+export function fileUrl(image: { id: string; ext: string }, download = false) {
+  const params = new URLSearchParams({ ext: image.ext });
+  if (download) params.set("download", "1");
+  return `/api/images/${image.id}/file?${params.toString()}`;
 }
 
 export function downloadImage(image: ImageRecord) {
   const a = document.createElement("a");
-  a.href = fileUrl(image.id, true);
+  a.href = fileUrl(image, true);
   a.download = image.originalName;
   document.body.appendChild(a);
   a.click();
@@ -182,7 +188,7 @@ export function ImageCard({
           className="size-14 shrink-0 overflow-hidden rounded-[var(--radius-sm)] bg-surface-2"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={fileUrl(image.id)} alt={image.originalName} className="h-full w-full object-cover" />
+          <img src={fileUrl(image)} alt={image.originalName} className="h-full w-full object-cover" />
         </button>
         <div className="min-w-0 flex-1">
           {NameLabel}
@@ -240,7 +246,7 @@ export function ImageCard({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={fileUrl(image.id)}
+          src={fileUrl(image)}
           alt={image.originalName}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
