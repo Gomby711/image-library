@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { readDb } from "@/lib/db";
-import { getImageFile } from "@/lib/r2";
+import { getImageFile, getResizedImageFile } from "@/lib/r2";
 import { mimeForExtension } from "@/lib/images";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -8,6 +8,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const url = new URL(req.url);
   const asAttachment = url.searchParams.get("download") === "1";
   const extParam = url.searchParams.get("ext");
+  // Grid/list thumbnails pass ?w= for a resized copy instead of the full
+  // original — never applied to downloads, and skipped entirely for
+  // formats Cloudflare Images can't transform (r2.ts falls back to null).
+  const widthParam = !asAttachment ? Number(url.searchParams.get("w")) || null : null;
 
   // Every grid thumbnail hits this route independently, so it must not read
   // the whole library DB (a KV get + JSON.parse of every image's metadata)
@@ -19,18 +23,35 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // R2 key (`${id}.${ext}`) directly. readDb() is now only a fallback for
   // any old/bookmarked URL that predates this and has no ?ext=.
   let filename: string;
+  let ext: string;
   let mimeType: string;
   let originalName = "download";
   if (extParam) {
-    filename = `${id}.${extParam}`;
-    mimeType = mimeForExtension(extParam);
+    ext = extParam;
+    filename = `${id}.${ext}`;
+    mimeType = mimeForExtension(ext);
   } else {
     const db = await readDb();
     const image = db.images.find((img) => img.id === id);
     if (!image) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    ext = image.ext;
     filename = image.filename;
     mimeType = image.mimeType;
     originalName = image.originalName;
+  }
+
+  if (widthParam) {
+    const resized = await getResizedImageFile(filename, ext, widthParam);
+    if (resized) {
+      return new NextResponse(resized.body as unknown as ReadableStream, {
+        headers: {
+          "Content-Type": resized.contentType,
+          "Cache-Control": "private, max-age=31536000, immutable",
+        },
+      });
+    }
+    // Fall through to the untransformed file below (unsupported format, or
+    // the Images binding threw) — a slow-but-correct thumbnail beats none.
   }
 
   const file = await getImageFile(filename);

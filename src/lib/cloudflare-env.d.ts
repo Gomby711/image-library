@@ -3,12 +3,13 @@
 // redeclare the ambient `Request`/`Response` types and silently break every route
 // handler's `req.json()` (DOM's Promise<any> becomes workers-types' Promise<unknown>).
 // Importing just the specific binding types avoids that global collision entirely.
-import type { KVNamespace, R2Bucket } from "@cloudflare/workers-types";
+import type { KVNamespace, R2Bucket, ImagesBinding } from "@cloudflare/workers-types";
 
 declare global {
   interface CloudflareEnv {
     DB_KV: KVNamespace;
     IMAGES_BUCKET: R2Bucket;
+    IMAGES: ImagesBinding;
   }
 }
 
