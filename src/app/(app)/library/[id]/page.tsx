@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { AppShell } from "@/components/app-shell";
 import { LibraryClient } from "@/components/library/library-client";
 import { useLibraryPages } from "@/hooks/use-library-pages";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +12,7 @@ export default function CustomLibraryPage() {
   const page = pages.find((p) => p.id === params.id);
 
   return (
-    <AppShell>
+    <>
       {loading ? (
         <div className="mb-6 flex flex-col gap-2">
           <Skeleton className="h-8 w-64" />
@@ -34,6 +33,6 @@ export default function CustomLibraryPage() {
         </div>
       )}
       {page && <LibraryClient lockedTag={page.tag} />}
-    </AppShell>
+    </>
   );
 }
