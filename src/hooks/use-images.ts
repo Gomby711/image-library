@@ -135,19 +135,32 @@ export function useImages(filters: ImageFilters) {
     }).catch(() => {});
   }, []);
 
-  const bulkAddTags = React.useCallback(async (ids: string[], addTags: string[]) => {
-    const res = await fetch("/api/images/bulk-tag", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids, addTags }),
-    });
-    if (res.ok) {
-      const { updated }: { updated: ImageRecord[] } = await res.json();
-      const byId = new Map(updated.map((img) => [img.id, img]));
-      setItems((prev) => prev.map((img) => byId.get(img.id) ?? img));
-    }
-    return res.ok;
-  }, []);
+  const bulkEditTags = React.useCallback(
+    async (ids: string[], edit: { addTags?: string[]; removeTags?: string[] }) => {
+      const res = await fetch("/api/images/bulk-tag", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, ...edit }),
+      });
+      if (res.ok) {
+        const { updated }: { updated: ImageRecord[] } = await res.json();
+        const byId = new Map(updated.map((img) => [img.id, img]));
+        setItems((prev) => prev.map((img) => byId.get(img.id) ?? img));
+      }
+      return res.ok;
+    },
+    []
+  );
+
+  const bulkAddTags = React.useCallback(
+    (ids: string[], addTags: string[]) => bulkEditTags(ids, { addTags }),
+    [bulkEditTags]
+  );
+
+  const bulkRemoveTags = React.useCallback(
+    (ids: string[], removeTags: string[]) => bulkEditTags(ids, { removeTags }),
+    [bulkEditTags]
+  );
 
   const deleteImage = React.useCallback(async (id: string) => {
     const res = await fetch(`/api/images/${id}`, { method: "DELETE" });
@@ -166,6 +179,7 @@ export function useImages(filters: ImageFilters) {
     upload,
     updateImage,
     bulkAddTags,
+    bulkRemoveTags,
     deleteImage,
     previewReorder,
     commitReorder,

@@ -170,3 +170,25 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sidebar-label-in { animation: none; }
 }
+
+/* Skeleton shimmer sweep, ported from the reference app: a light band sweeps
+   across loading placeholders instead of the flatter default pulse, so
+   "still loading" reads as active progress rather than a stalled block. */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, oklch(0.94 0.006 55 / 0.08), transparent);
+  animation: skeletonSweep 1.6s ease-in-out infinite;
+}
+@keyframes skeletonSweep {
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer::after { animation: none; }
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Tag, X } from "lucide-react";
+import { Loader2, Tag, Tags, X } from "lucide-react";
 import { useImages } from "@/hooks/use-images";
 import { UploadDropzone } from "@/components/library/upload-dropzone";
 import { Toolbar } from "@/components/library/toolbar";
@@ -11,6 +11,7 @@ import { Lightbox } from "@/components/library/lightbox";
 import { TagEditorDialog } from "@/components/library/tag-editor-dialog";
 import { RenameImageDialog } from "@/components/library/rename-image-dialog";
 import { BulkTagDialog } from "@/components/library/bulk-tag-dialog";
+import { BulkRemoveTagDialog } from "@/components/library/bulk-remove-tag-dialog";
 import { CoverflowCarousel, type CoverflowSlide } from "@/components/ui/coverflow-carousel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   const [selectMode, setSelectMode] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [bulkTagOpen, setBulkTagOpen] = React.useState(false);
+  const [bulkRemoveOpen, setBulkRemoveOpen] = React.useState(false);
   const gridRef = React.useRef<HTMLDivElement>(null);
   const cardElRefs = React.useRef<Map<string, HTMLElement>>(new Map());
   const [marquee, setMarquee] = React.useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -48,8 +50,19 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   const effectivePageSize: PageSize = view === "carousel" || reorderMode ? "all" : pageSize;
   const effectiveSort: SortKey = reorderMode ? "custom" : sort;
 
-  const { items, total, loading, uploads, upload, updateImage, bulkAddTags, deleteImage, previewReorder, commitReorder } =
-    useImages({
+  const {
+    items,
+    total,
+    loading,
+    uploads,
+    upload,
+    updateImage,
+    bulkAddTags,
+    bulkRemoveTags,
+    deleteImage,
+    previewReorder,
+    commitReorder,
+  } = useImages({
       search,
       sort: effectiveSort,
       tag: lockedTag,
@@ -92,30 +105,43 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
   // Rubber-band / marquee select: click-drag on empty grid space selects
   // every card the rectangle overlaps, same as a desktop file manager.
+  // The start corner is stored in document-absolute coordinates (client +
+  // scroll offset) rather than "relative to the grid's rect right now" —
+  // that rect moves once auto-scroll kicks in, so a rect-relative start
+  // point would silently drift away from where the drag actually began.
   function handleGridMouseDown(e: React.MouseEvent<HTMLDivElement>) {
     if (!selectMode || e.target !== e.currentTarget) return;
+    dragStartRef.current = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
     const rect = gridRef.current!.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    dragStartRef.current = { x, y };
     setMarquee({ x0: x, y0: y, x1: x, y1: y });
   }
 
   React.useEffect(() => {
     if (!marquee) return;
 
-    function onMove(e: MouseEvent) {
+    let lastClientX = 0;
+    let lastClientY = 0;
+    let autoScrollFrame: number | null = null;
+
+    function computeSelection() {
       const rect = gridRef.current?.getBoundingClientRect();
       const start = dragStartRef.current;
       if (!rect || !start) return;
-      const x1 = e.clientX - rect.left;
-      const y1 = e.clientY - rect.top;
-      setMarquee({ x0: start.x, y0: start.y, x1, y1 });
+      // Both corners derived fresh from the CURRENT rect + current scroll
+      // every tick, so the rectangle stays anchored to the real document
+      // positions no matter how much the page has auto-scrolled since.
+      const x0 = start.x - (rect.left + window.scrollX);
+      const y0 = start.y - (rect.top + window.scrollY);
+      const x1 = lastClientX - rect.left;
+      const y1 = lastClientY - rect.top;
+      setMarquee({ x0, y0, x1, y1 });
 
-      const left = Math.min(start.x, x1);
-      const right = Math.max(start.x, x1);
-      const top = Math.min(start.y, y1);
-      const bottom = Math.max(start.y, y1);
+      const left = Math.min(x0, x1);
+      const right = Math.max(x0, x1);
+      const top = Math.min(y0, y1);
+      const bottom = Math.max(y0, y1);
 
       const hit = new Set<string>();
       cardElRefs.current.forEach((el, id) => {
@@ -129,6 +155,30 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
       setSelectedIds(hit);
     }
 
+    // "Giant" selections need to reach content off-screen — while dragging
+    // near the top/bottom edge of the viewport, keep scrolling the page so
+    // the marquee can grow past what was visible when the drag started.
+    const EDGE = 60;
+    const MAX_SPEED = 22;
+    function autoScrollTick() {
+      const distFromBottom = window.innerHeight - lastClientY;
+      let speed = 0;
+      if (lastClientY < EDGE) speed = -MAX_SPEED * (1 - lastClientY / EDGE);
+      else if (distFromBottom < EDGE) speed = MAX_SPEED * (1 - distFromBottom / EDGE);
+      if (speed !== 0) {
+        window.scrollBy(0, speed);
+        computeSelection();
+      }
+      autoScrollFrame = requestAnimationFrame(autoScrollTick);
+    }
+    autoScrollFrame = requestAnimationFrame(autoScrollTick);
+
+    function onMove(e: MouseEvent) {
+      lastClientX = e.clientX;
+      lastClientY = e.clientY;
+      computeSelection();
+    }
+
     function onUp() {
       dragStartRef.current = null;
       setMarquee(null);
@@ -139,6 +189,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     return () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      if (autoScrollFrame) cancelAnimationFrame(autoScrollFrame);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!marquee]);
@@ -151,6 +202,25 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     }
     return ok;
   }
+
+  async function handleBulkRemove(tags: string[]) {
+    const ok = await bulkRemoveTags(Array.from(selectedIds), tags);
+    if (ok) {
+      setSelectedIds(new Set());
+      setSelectMode(false);
+    }
+    return ok;
+  }
+
+  // Union of every tag across the currently-selected images — the removal
+  // dialog only offers tags that actually exist somewhere in the selection.
+  const selectedTagsUnion = React.useMemo(() => {
+    const set = new Set<string>();
+    for (const img of items) {
+      if (selectedIds.has(img.id)) img.tags.forEach((t) => set.add(t));
+    }
+    return Array.from(set).sort();
+  }, [items, selectedIds]);
 
   function handleDragStart(index: number) {
     dragIndexRef.current = index;
@@ -331,6 +401,9 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
             <Button size="sm" onClick={() => setBulkTagOpen(true)}>
               <Tag className="size-4" /> Add tag
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setBulkRemoveOpen(true)}>
+              <Tags className="size-4" /> Remove tag
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
               <X className="size-4" /> Clear
             </Button>
@@ -365,6 +438,14 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
         count={selectedIds.size}
         onClose={() => setBulkTagOpen(false)}
         onApply={handleBulkApply}
+      />
+
+      <BulkRemoveTagDialog
+        open={bulkRemoveOpen}
+        count={selectedIds.size}
+        availableTags={selectedTagsUnion}
+        onClose={() => setBulkRemoveOpen(false)}
+        onApply={handleBulkRemove}
       />
     </div>
   );

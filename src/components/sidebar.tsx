@@ -48,7 +48,27 @@ export function Sidebar() {
   const indicatorRef = React.useRef<HTMLDivElement>(null);
   const itemRefs = React.useRef<Map<string, HTMLAnchorElement>>(new Map());
 
-  const { pages, createPage, renamePage, deletePage } = useLibraryPages();
+  const { pages, createPage, renamePage, deletePage, previewReorderPages, commitReorderPages } = useLibraryPages();
+  const pageDragIndexRef = React.useRef<number | null>(null);
+
+  function handlePageDragStart(index: number) {
+    pageDragIndexRef.current = index;
+  }
+
+  function handlePageDragEnter(index: number) {
+    const from = pageDragIndexRef.current;
+    if (from === null || from === index) return;
+    const ids = pages.map((p) => p.id);
+    const [moved] = ids.splice(from, 1);
+    ids.splice(index, 0, moved);
+    previewReorderPages(ids);
+    pageDragIndexRef.current = index;
+  }
+
+  function handlePageDragEnd() {
+    pageDragIndexRef.current = null;
+    commitReorderPages(pages.map((p) => p.id));
+  }
 
   React.useEffect(() => {
     try {
@@ -251,7 +271,7 @@ export function Sidebar() {
           </button>
         )}
 
-        {pages.map((p) => {
+        {pages.map((p, index) => {
           const href = `/library/${p.id}`;
           const active = activeHref === href;
           return (
@@ -262,10 +282,22 @@ export function Sidebar() {
                 if (el) itemRefs.current.set(href, el);
               }}
               title={collapsed ? p.name : undefined}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = "move";
+                handlePageDragStart(index);
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                handlePageDragEnter(index);
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnd={handlePageDragEnd}
               className={cn(
                 "group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2.5 text-sm font-medium transition-colors",
                 collapsed ? "justify-center px-2" : "px-3",
-                !active && "sidebar-link-hoverable"
+                !active && "sidebar-link-hoverable",
+                "cursor-grab active:cursor-grabbing"
               )}
               style={{ color: active ? "#ffffff" : "var(--sidebar-text)" }}
             >

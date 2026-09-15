@@ -55,5 +55,34 @@ export function useLibraryPages() {
     return res.ok;
   }, []);
 
-  return { pages, loading, createPage, renamePage, deletePage, refresh };
+  // Live drag feedback for sidebar reordering: reorders the in-memory list
+  // only, no network call — called on every drag-over so the tab order
+  // visibly shuffles as you drag.
+  const previewReorderPages = React.useCallback((newOrderIds: string[]) => {
+    setPages((prev) => {
+      const byId = new Map(prev.map((p) => [p.id, p]));
+      const reordered = newOrderIds.map((id) => byId.get(id)).filter((p): p is LibraryPageRecord => !!p);
+      return reordered.length === prev.length ? reordered : prev;
+    });
+  }, []);
+
+  // Persists the current order to disk — called once on drop, not per drag-over.
+  const commitReorderPages = React.useCallback((newOrderIds: string[]) => {
+    fetch("/api/library-pages/reorder", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: newOrderIds }),
+    }).catch(() => {});
+  }, []);
+
+  return {
+    pages,
+    loading,
+    createPage,
+    renamePage,
+    deletePage,
+    previewReorderPages,
+    commitReorderPages,
+    refresh,
+  };
 }
