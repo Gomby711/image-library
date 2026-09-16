@@ -15,11 +15,12 @@ export async function POST(req: Request) {
   return withApiErrors(async () => {
     const body = await req.json().catch(() => ({}));
     const name = typeof body.name === "string" ? body.name.trim() : "";
-    const tag = typeof body.tag === "string" ? body.tag.trim() : "";
+    // No tag at all is a valid, deliberate choice — it means "show every
+    // image", same as the main Library.
+    const tag = typeof body.tag === "string" && body.tag.trim() ? body.tag.trim() : null;
     const workspaceId = typeof body.workspaceId === "string" ? body.workspaceId : null;
 
     if (!name) return NextResponse.json({ error: "Page name is required" }, { status: 400 });
-    if (!tag) return NextResponse.json({ error: "A tag to filter by is required" }, { status: 400 });
 
     const page: LibraryPageRecord = {
       id: randomUUID(),

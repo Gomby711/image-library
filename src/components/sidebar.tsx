@@ -63,7 +63,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PAGE_ICON_OPTIONS, type LibraryPageRecord, type PageIconName, type WorkspaceRecord } from "@/lib/types";
+import { useCustomTags } from "@/hooks/use-custom-tags";
+import {
+  PAGE_ICON_OPTIONS,
+  PRESET_TAGS,
+  type LibraryPageRecord,
+  type PageIconName,
+  type WorkspaceRecord,
+} from "@/lib/types";
 
 const NAV = [{ href: "/", label: "Library", icon: Images }];
 const WORKSPACE_COLLAPSE_KEY = "luminary-sidebar-workspace-collapsed";
@@ -187,6 +194,86 @@ function IconPickerButton({
   );
 }
 
+type TagMode = "auto" | "custom" | "none";
+
+function segmentButtonClass(active: boolean) {
+  return cn(
+    "rounded-[var(--radius-sm)] border px-2.5 py-1.5 text-xs font-medium transition-colors",
+    active
+      ? "border-accent bg-accent text-accent-foreground"
+      : "border-border bg-surface text-foreground hover:bg-surface-2"
+  );
+}
+
+/** Lets a library page's tag filter be picked independently of its name:
+ *  match the page name (the old default), pick/type any tag (existing or
+ *  brand new), or skip filtering entirely so the page shows every image —
+ *  same mechanism the main Library uses. Shared by the create and edit
+ *  dialogs. */
+function TagFilterFields({
+  tagMode,
+  setTagMode,
+  tagInput,
+  setTagInput,
+  tagOptions,
+  nameForAuto,
+}: {
+  tagMode: TagMode;
+  setTagMode: (mode: TagMode) => void;
+  tagInput: string;
+  setTagInput: (value: string) => void;
+  tagOptions: string[];
+  nameForAuto: string;
+}) {
+  return (
+    <div className="grid gap-2">
+      <Label>Filter by tag</Label>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => setTagMode("auto")} className={segmentButtonClass(tagMode === "auto")}>
+          Same as page name{nameForAuto.trim() ? ` (${nameForAuto.trim()})` : ""}
+        </button>
+        <button type="button" onClick={() => setTagMode("custom")} className={segmentButtonClass(tagMode === "custom")}>
+          Pick a tag
+        </button>
+        <button type="button" onClick={() => setTagMode("none")} className={segmentButtonClass(tagMode === "none")}>
+          No filter — all images
+        </button>
+      </div>
+      {tagMode === "custom" && (
+        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-border p-3">
+          {tagOptions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {tagOptions.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTagInput(t)}
+                  className={cn(
+                    "rounded-[var(--radius-sm)] border px-2.5 py-1 text-xs font-medium transition-colors",
+                    tagInput === t
+                      ? "border-accent bg-accent text-accent-foreground"
+                      : "border-border bg-surface text-foreground hover:bg-surface-2"
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+          <Input
+            placeholder="or type a tag name"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+          />
+        </div>
+      )}
+      {tagMode === "none" && (
+        <p className="text-xs text-muted-foreground">This page will show every image, same as the main Library.</p>
+      )}
+    </div>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -200,6 +287,14 @@ export function Sidebar() {
   const [renameTarget, setRenameTarget] = React.useState<LibraryPageRecord | null>(null);
   const [renameValue, setRenameValue] = React.useState("");
   const [renaming, setRenaming] = React.useState(false);
+  // Shared by the create and edit dialogs (never open at the same time).
+  const [tagMode, setTagMode] = React.useState<TagMode>("auto");
+  const [tagInput, setTagInput] = React.useState("");
+  const { tags: savedTags } = useCustomTags();
+  const tagOptions = React.useMemo(
+    () => Array.from(new Set<string>([...PRESET_TAGS, ...savedTags])).sort((a, b) => a.localeCompare(b)),
+    [savedTags]
+  );
 
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = React.useState(false);
   const [createWorkspaceParentId, setCreateWorkspaceParentId] = React.useState<string | null>(null);
@@ -216,6 +311,7 @@ export function Sidebar() {
     createPage,
     renamePage,
     deletePage,
+    setPageTag,
     setPageIcon,
     reorderPage,
   } = useLibraryPages();
@@ -330,15 +426,22 @@ export function Sidebar() {
 
   function openCreatePage(parentId: string | null) {
     setCreatePageParentId(parentId);
+    setTagMode("auto");
+    setTagInput("");
     setCreatePageOpen(true);
+  }
+
+  function resolveTag(mode: TagMode, name: string, customValue: string): string | null {
+    if (mode === "none") return null;
+    if (mode === "auto") return name.trim() || null;
+    return customValue.trim() || null;
   }
 
   async function handleCreatePage() {
     if (!newName.trim()) return;
     setCreating(true);
-    // The page's tag is just its name — creating "Car Images Library" makes a
-    // "Car Images Library" tag; tag any image with it to show it on this page.
-    const page = await createPage(newName.trim(), newName.trim(), createPageParentId);
+    const tag = resolveTag(tagMode, newName, tagInput);
+    const page = await createPage(newName.trim(), tag, createPageParentId);
     setCreating(false);
     if (page) {
       setCreatePageOpen(false);
@@ -347,10 +450,27 @@ export function Sidebar() {
     }
   }
 
+  function openRenamePage(p: LibraryPageRecord) {
+    setRenameTarget(p);
+    setRenameValue(p.name);
+    if (p.tag === null) {
+      setTagMode("none");
+      setTagInput("");
+    } else if (p.tag === p.name) {
+      setTagMode("auto");
+      setTagInput("");
+    } else {
+      setTagMode("custom");
+      setTagInput(p.tag);
+    }
+  }
+
   async function handleRenamePage() {
     if (!renameTarget || !renameValue.trim()) return;
     setRenaming(true);
+    const tag = resolveTag(tagMode, renameValue, tagInput);
     await renamePage(renameTarget.id, renameValue.trim());
+    await setPageTag(renameTarget.id, tag);
     setRenaming(false);
     setRenameTarget(null);
   }
@@ -634,10 +754,9 @@ export function Sidebar() {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                setRenameTarget(p);
-                setRenameValue(p.name);
+                openRenamePage(p);
               }}
-              aria-label={`Rename ${p.name}`}
+              aria-label={`Edit ${p.name}`}
               className="rounded p-0.5 hover:bg-white/15"
             >
               <Pencil className="size-3" />
@@ -938,19 +1057,28 @@ export function Sidebar() {
           <DialogHeader>
             <DialogTitle>New library page</DialogTitle>
             <DialogDescription>
-              Name it and it's ready — e.g. "Car Images Library". Tag any image with that same name from its tag
-              editor to make it show up here.
+              Name it, then choose what it shows — a specific tag, or every image with no filter at all.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="page-name">Page name</Label>
-            <Input
-              id="page-name"
-              autoFocus
-              placeholder="e.g. Hero Banner Image Library"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreatePage()}
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="page-name">Page name</Label>
+              <Input
+                id="page-name"
+                autoFocus
+                placeholder="e.g. Hero Banner Image Library"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreatePage()}
+              />
+            </div>
+            <TagFilterFields
+              tagMode={tagMode}
+              setTagMode={setTagMode}
+              tagInput={tagInput}
+              setTagInput={setTagInput}
+              tagOptions={tagOptions}
+              nameForAuto={newName}
             />
           </div>
           <DialogFooter>
@@ -967,19 +1095,30 @@ export function Sidebar() {
       <Dialog open={!!renameTarget} onOpenChange={(open) => !open && setRenameTarget(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rename library page</DialogTitle>
+            <DialogTitle>Edit library page</DialogTitle>
             <DialogDescription>
-              Renaming updates the tag too, so images already tagged for this page stay attached.
+              The name and the tag filter are independent — changing one never touches the other or any image's
+              tags.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <Label htmlFor="rename-page-name">Page name</Label>
-            <Input
-              id="rename-page-name"
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleRenamePage()}
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="rename-page-name">Page name</Label>
+              <Input
+                id="rename-page-name"
+                autoFocus
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleRenamePage()}
+              />
+            </div>
+            <TagFilterFields
+              tagMode={tagMode}
+              setTagMode={setTagMode}
+              tagInput={tagInput}
+              setTagInput={setTagInput}
+              tagOptions={tagOptions}
+              nameForAuto={renameValue}
             />
           </div>
           <DialogFooter>

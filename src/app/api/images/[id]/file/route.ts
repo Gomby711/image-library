@@ -72,11 +72,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // A plain ASCII fallback for older clients, plus the RFC 5987
     // UTF-8-encoded form so names with accents/emoji/etc. still come
     // through intact in browsers that support it (all current ones do).
-    const asciiFallback = originalName.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'");
-    headers.set(
-      "Content-Disposition",
-      `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(originalName)}`
-    );
+    // A header value with a stray control character (or anything else the
+    // Headers API considers invalid) would throw here and take the whole
+    // download down with it — degrade to a plain default name instead of
+    // failing the request outright.
+    try {
+      const asciiFallback = originalName.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'").trim() || "image";
+      headers.set(
+        "Content-Disposition",
+        `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(originalName)}`
+      );
+    } catch {
+      headers.set("Content-Disposition", `attachment; filename="image.${ext}"`);
+    }
   }
 
   return new NextResponse(file.body as unknown as ReadableStream, { headers });

@@ -12,21 +12,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const page = db.libraryPages.find((p) => p.id === id);
       if (!page) return null;
 
-      // A page's tag always matches its name (that's how images know to show
-      // up on it) — renaming the page relabels the tag everywhere it's used
-      // so previously-tagged images stay attached instead of falling off.
-      if (typeof body.name === "string" && body.name.trim() && body.name.trim() !== page.name) {
-        const oldTag = page.tag;
-        const newName = body.name.trim();
-        page.name = newName;
-        page.tag = newName;
-        db.images.forEach((img) => {
-          if (img.tags.includes(oldTag)) {
-            img.tags = img.tags.map((t) => (t === oldTag ? newName : t));
-          }
-        });
+      // The display name and the tag filter are independent — renaming a
+      // page never touches which tag (if any) it's filtered to, or any
+      // image's tags.
+      if (typeof body.name === "string" && body.name.trim()) {
+        page.name = body.name.trim();
       }
-      if (typeof body.tag === "string" && body.tag.trim()) page.tag = body.tag.trim();
+      // Explicit null clears the filter entirely (page shows every image);
+      // an empty/whitespace string is treated the same as null rather than
+      // silently no-op-ing.
+      if ("tag" in body) {
+        page.tag = typeof body.tag === "string" && body.tag.trim() ? body.tag.trim() : null;
+      }
       if ("workspaceId" in body) {
         page.workspaceId = typeof body.workspaceId === "string" ? body.workspaceId : null;
       }

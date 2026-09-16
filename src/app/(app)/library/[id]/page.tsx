@@ -34,14 +34,15 @@ function PageHero({
     }
 
     // A file dropped in from the desktop / file explorer — upload it (tagged
-    // for this page, same as the normal upload dropzone) and use it as hero.
+    // for this page, same as the normal upload dropzone, when this page has
+    // a tag filter at all) and use it as hero.
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
       const form = new FormData();
       form.append("files", file);
-      form.append("tags", page.tag);
+      if (page.tag) form.append("tags", page.tag);
       const res = await fetch("/api/images", { method: "POST", body: form });
       if (res.ok) {
         const data = await res.json();
@@ -86,7 +87,13 @@ function PageHero({
           <span className="h-1 w-14 rounded-full" style={{ background: "var(--accent)" }} />
           <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">{page.name}</h1>
           <p className="max-w-xl text-sm text-white/75 sm:text-base">
-            Showing images tagged <span className="font-medium text-white">{page.tag}</span>.
+            {page.tag ? (
+              <>
+                Showing images tagged <span className="font-medium text-white">{page.tag}</span>.
+              </>
+            ) : (
+              "Showing every image in your library."
+            )}
             {!heroSrc && " Drag an image here (or drop one from your computer) to set a hero banner."}
           </p>
         </div>
