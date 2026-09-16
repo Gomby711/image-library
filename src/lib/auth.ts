@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "crypto";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { kvGet, kvPut } from "./kv";
 
 export const SESSION_COOKIE = "luminary_session";
 export const SITE_PASSWORD = process.env.LUMINARY_SITE_PASSWORD ?? "Coverking1";
@@ -10,8 +10,7 @@ let cachedSecret: string | null = null;
 
 async function getSecret(): Promise<string> {
   if (cachedSecret) return cachedSecret;
-  const { env } = await getCloudflareContext({ async: true });
-  const existing = await env.DB_KV.get(SECRET_KEY);
+  const existing = await kvGet(SECRET_KEY);
   if (existing) {
     cachedSecret = existing;
     return existing;
@@ -19,7 +18,7 @@ async function getSecret(): Promise<string> {
   const generated = createHmac("sha256", `${Date.now()}-${Math.random()}`)
     .update("luminary")
     .digest("hex");
-  await env.DB_KV.put(SECRET_KEY, generated);
+  await kvPut(SECRET_KEY, generated);
   cachedSecret = generated;
   return generated;
 }

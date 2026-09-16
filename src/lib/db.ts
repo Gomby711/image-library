@@ -1,4 +1,4 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { kvGet, kvPut } from "./kv";
 import { PAGE_ICON_OPTIONS, type DbShape, type PageIconName } from "./types";
 
 function sanitizeIcon(value: unknown): PageIconName | null {
@@ -20,10 +20,6 @@ function cloneDb(db: DbShape): DbShape {
   };
 }
 
-async function getKv() {
-  const { env } = await getCloudflareContext({ async: true });
-  return env.DB_KV;
-}
 
 // Writes can race under concurrent requests (upload + tag edit landing together).
 // A single in-process queue serializes them so one write never clobbers another —
@@ -66,8 +62,7 @@ const CACHE_TTL_MS = 5000;
 export async function readDb(): Promise<DbShape> {
   if (cachedDb && Date.now() - cacheStamp < CACHE_TTL_MS) return cloneDb(cachedDb);
 
-  const kv = await getKv();
-  const raw = await kv.get(DB_KEY);
+  const raw = await kvGet(DB_KEY);
   let db: DbShape;
   if (!raw) {
     db = { ...EMPTY_DB };
@@ -112,8 +107,7 @@ async function writeDb(db: DbShape): Promise<void> {
   const wait = MIN_WRITE_INTERVAL_MS - (Date.now() - lastWriteAt);
   if (wait > 0) await sleep(wait);
 
-  const kv = await getKv();
-  await kv.put(DB_KEY, JSON.stringify(db));
+  await kvPut(DB_KEY, JSON.stringify(db));
   lastWriteAt = Date.now();
   cachedDb = db;
   cacheStamp = Date.now();
