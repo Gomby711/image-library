@@ -123,7 +123,7 @@ export default function LoginPage() {
         <div className="login-panel w-full max-w-sm">
           <div className="mb-8 flex items-center">
             <Image
-              src="/brand/coverking-logo-blue.png"
+              src="/brand/coverking-logo-white.png"
               alt="Coverking"
               width={1915}
               height={525}

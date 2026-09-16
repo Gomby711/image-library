@@ -3,17 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { cn } from "@/lib/utils";
-
-const NAV = [{ href: "/", label: "Library" }];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = React.useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
@@ -41,7 +37,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               style={{ background: "var(--accent)" }}
             >
               <Image
-                src="/brand/coverking-logo-blue.png"
+                src="/brand/coverking-logo-white.png"
                 alt="Coverking"
                 width={1915}
                 height={525}
@@ -50,20 +46,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="sr-only">Coverking Asset Library</span>
           </Link>
-          <nav className="flex items-center gap-1">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-                  pathname === item.href && "text-foreground"
-                )}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
           <div className="flex items-center gap-1">
             <ThemeToggle className="size-8 opacity-70 hover:opacity-100" />
             <Button variant="ghost" size="sm" onClick={handleLogout} disabled={loggingOut}>

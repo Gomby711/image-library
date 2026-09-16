@@ -923,7 +923,10 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
         onClick={toggleCollapsed}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        className="absolute -right-4 top-1/2 z-30 flex h-16 w-8 -translate-y-1/2 items-center justify-center rounded-full border-2 transition-transform hover:scale-105"
+        className={cn(
+          "absolute -right-4 top-1/2 z-30 flex h-16 w-8 -translate-y-1/2 items-center justify-center rounded-full border-2 transition-transform hover:scale-105",
+          mobileOpen && "hidden"
+        )}
         style={{
           background: "var(--sidebar-bg)",
           borderColor: "var(--sidebar-border)",
@@ -956,7 +959,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
           />
         ) : (
           <Image
-            src="/brand/coverking-logo-blue.png"
+            src="/brand/coverking-logo-white.png"
             alt="Coverking"
             width={1915}
             height={525}
