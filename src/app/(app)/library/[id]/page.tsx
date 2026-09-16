@@ -104,11 +104,11 @@ function PageHero({
         ) : (
           <div
             className="absolute inset-0"
-            style={{ background: "linear-gradient(135deg, var(--surface), var(--surface-2))" }}
+            style={{ background: "linear-gradient(135deg, #121416, #1e2124)" }}
           />
         )}
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/75 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
 
         <div className="relative flex h-full flex-col justify-end gap-3 p-6 sm:p-8">
           <span className="h-1 w-14 rounded-full" style={{ background: "var(--accent)" }} />

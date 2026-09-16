@@ -110,7 +110,7 @@ export default function LoginPage() {
           style={{ objectPosition: "78% 55%" }}
           className="h-full w-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
       </div>
 
       {/* Right panel is solid Coverking blue — the same blue the logo art
