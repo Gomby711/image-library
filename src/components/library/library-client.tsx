@@ -6,7 +6,7 @@ import { useImages } from "@/hooks/use-images";
 import { UploadDropzone } from "@/components/library/upload-dropzone";
 import { Toolbar } from "@/components/library/toolbar";
 import { Pagination } from "@/components/library/pagination";
-import { ImageCard, fileUrl, THUMB_WIDTH } from "@/components/library/image-card";
+import { HERO_DRAG_MIME, ImageCard, fileUrl, THUMB_WIDTH } from "@/components/library/image-card";
 import { Lightbox } from "@/components/library/lightbox";
 import { TagEditorDialog } from "@/components/library/tag-editor-dialog";
 import { RenameImageDialog } from "@/components/library/rename-image-dialog";
@@ -66,6 +66,16 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
   const effectivePageSize: PageSize = view === "carousel" || reorderMode ? "all" : pageSize;
   const effectiveSort: SortKey = reorderMode ? "custom" : sort;
+
+  // On a tag-locked Library Page (not the main library), a card can be
+  // dragged out of the grid and dropped onto that page's hero banner —
+  // only when nothing else is already using drag/click gestures on it.
+  const heroDraggable = !!lockedTag && !selectMode && !reorderMode;
+  function handleHeroDragStart(e: React.DragEvent, imageId: string) {
+    if (!heroDraggable) return;
+    e.dataTransfer.setData(HERO_DRAG_MIME, imageId);
+    e.dataTransfer.effectAllowed = "copy";
+  }
 
   const {
     items,
@@ -417,6 +427,8 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
                 if (el) cardElRefs.current.set(img.id, el);
                 else cardElRefs.current.delete(img.id);
               }}
+              draggable={heroDraggable}
+              onDragStart={(e) => handleHeroDragStart(e, img.id)}
             >
               <ImageCard
                 image={img}
@@ -458,6 +470,8 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
                 if (el) cardElRefs.current.set(img.id, el);
                 else cardElRefs.current.delete(img.id);
               }}
+              draggable={heroDraggable}
+              onDragStart={(e) => handleHeroDragStart(e, img.id)}
             >
               <ImageCard
                 image={img}

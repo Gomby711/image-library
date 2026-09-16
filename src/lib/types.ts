@@ -19,31 +19,14 @@ export const PRESET_TAGS = [
 
 export type PresetTag = (typeof PRESET_TAGS)[number];
 
-/** Curated vehicle emoji offered as sidebar icons for library pages and
- *  workspaces — picking one replaces the generic page/folder glyph. */
+/** General-purpose icon set offered for library pages and workspaces —
+ *  picking one replaces the generic page/folder glyph. Deliberately not
+ *  vehicle-only, so it suits any kind of collection. */
 export const EMOJI_ICON_OPTIONS = [
-  "🚗", "🚙", "🏎️", "🚓", "🚕", "🚐", "🛻", "🚚", "🚛", "🏍️",
-  "🛵", "🚲", "🚔", "🚨", "🛺", "🚜", "🚘", "🛞", "🏁", "🔧",
-  "⛽", "🅿️", "🚦", "🛠️",
+  "📁", "🗂️", "📸", "🖼️", "🎬", "🏷️", "⭐", "🔥",
+  "💎", "🎯", "📌", "🧩", "🎨", "✨", "📦", "🔖",
+  "🗃️", "🧾", "📋", "💼", "🛠️", "⚙️", "🔩", "🧰",
 ] as const;
-
-/** Vehicle emoji this pool draws "automatic variety" from for library pages
- *  that haven't had an icon manually chosen — utility/tool emoji (wrench,
- *  fuel pump, parking sign…) are excluded here since they don't read as
- *  "a kind of car". */
-const AUTO_VARIETY_POOL = EMOJI_ICON_OPTIONS.filter(
-  (e) => !["🛞", "🏁", "🔧", "⛽", "🅿️", "🚦", "🛠️"].includes(e)
-);
-
-/** Deterministically picks a vehicle emoji from a page's name, so freshly
- *  created pages look varied and intentional out of the box instead of all
- *  sharing one generic icon — stable across reloads (same name -> same
- *  icon), and superseded the moment a user picks one explicitly. */
-export function defaultPageEmoji(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return AUTO_VARIETY_POOL[hash % AUTO_VARIETY_POOL.length];
-}
 
 export const ACCEPTED_EXTENSIONS = [
   "jpg",
@@ -99,6 +82,12 @@ export interface LibraryPageRecord {
   /** Optional emoji shown instead of the generic page icon — one of
    *  EMOJI_ICON_OPTIONS, or null for the default icon. */
   emoji: string | null;
+  /** Sidebar position among siblings sharing the same workspaceId — pages
+   *  and workspaces share one ordering space per parent, so either kind can
+   *  be dragged above/below the other, not just within its own kind. */
+  order: number;
+  /** Id of the image (if any) used as this page's hero banner. */
+  heroImageId: string | null;
 }
 
 /** A renamable sidebar folder that groups Library Pages together — collapsing
@@ -112,6 +101,9 @@ export interface WorkspaceRecord {
   /** Optional emoji shown instead of the generic folder icon — one of
    *  EMOJI_ICON_OPTIONS, or null for the default icon. */
   emoji: string | null;
+  /** Sidebar position among siblings sharing the same parentId — see
+   *  LibraryPageRecord.order. */
+  order: number;
 }
 
 /** A custom tag the user has typed at least once, remembered so it can be

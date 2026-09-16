@@ -36,13 +36,11 @@ export function useLibraryPages() {
     return null;
   }, []);
 
-  // Assigns (or clears, with null) which Workspace folder a page lives
-  // under — purely organizational, doesn't touch the page's tag or images.
-  const setPageWorkspace = React.useCallback(async (id: string, workspaceId: string | null) => {
+  const setPageEmoji = React.useCallback(async (id: string, emoji: string | null) => {
     const res = await fetch(`/api/library-pages/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workspaceId }),
+      body: JSON.stringify({ emoji }),
     });
     if (res.ok) {
       const updated: LibraryPageRecord = await res.json();
@@ -51,11 +49,27 @@ export function useLibraryPages() {
     return res.ok;
   }, []);
 
-  const setPageEmoji = React.useCallback(async (id: string, emoji: string | null) => {
+  const setPageHeroImage = React.useCallback(async (id: string, heroImageId: string | null) => {
     const res = await fetch(`/api/library-pages/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emoji }),
+      body: JSON.stringify({ heroImageId }),
+    });
+    if (res.ok) {
+      const updated: LibraryPageRecord = await res.json();
+      setPages((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    }
+    return res.ok;
+  }, []);
+
+  // Repositions a page among its siblings (pages and workspaces share one
+  // ordering space per parent) and, if it's moving into a different
+  // workspace at the same time, reassigns that too — one PATCH either way.
+  const reorderPage = React.useCallback(async (id: string, order: number, workspaceId: string | null) => {
+    const res = await fetch(`/api/library-pages/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order, workspaceId }),
     });
     if (res.ok) {
       const updated: LibraryPageRecord = await res.json();
@@ -83,36 +97,15 @@ export function useLibraryPages() {
     return res.ok;
   }, []);
 
-  // Live drag feedback for sidebar reordering: reorders the in-memory list
-  // only, no network call — called on every drag-over so the tab order
-  // visibly shuffles as you drag.
-  const previewReorderPages = React.useCallback((newOrderIds: string[]) => {
-    setPages((prev) => {
-      const byId = new Map(prev.map((p) => [p.id, p]));
-      const reordered = newOrderIds.map((id) => byId.get(id)).filter((p): p is LibraryPageRecord => !!p);
-      return reordered.length === prev.length ? reordered : prev;
-    });
-  }, []);
-
-  // Persists the current order to disk — called once on drop, not per drag-over.
-  const commitReorderPages = React.useCallback((newOrderIds: string[]) => {
-    fetch("/api/library-pages/reorder", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: newOrderIds }),
-    }).catch(() => {});
-  }, []);
-
   return {
     pages,
     loading,
     createPage,
     renamePage,
     deletePage,
-    setPageWorkspace,
     setPageEmoji,
-    previewReorderPages,
-    commitReorderPages,
+    setPageHeroImage,
+    reorderPage,
     refresh,
   };
 }

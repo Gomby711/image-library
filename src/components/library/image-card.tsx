@@ -28,6 +28,12 @@ export function fileUrl(image: { id: string; ext: string }, opts?: { download?: 
  *  originals. */
 export const THUMB_WIDTH = 480;
 
+/** Custom drag-data type used when dragging an image card out of the grid
+ *  to drop it onto a Library Page's hero banner — distinct from a plain
+ *  text/file drag so the hero drop zone can tell "an image from this page"
+ *  apart from "a file from the desktop". */
+export const HERO_DRAG_MIME = "application/x-luminary-image-id";
+
 export function downloadImage(image: ImageRecord) {
   const a = document.createElement("a");
   a.href = fileUrl(image, { download: true });

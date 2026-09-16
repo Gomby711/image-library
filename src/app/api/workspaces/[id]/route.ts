@@ -35,6 +35,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if ("emoji" in body) {
         workspace.emoji = typeof body.emoji === "string" ? body.emoji : null;
       }
+      if (typeof body.order === "number" && Number.isFinite(body.order)) {
+        workspace.order = body.order;
+      }
       return workspace;
     });
 

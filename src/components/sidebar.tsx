@@ -39,7 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { defaultPageEmoji, EMOJI_ICON_OPTIONS, type LibraryPageRecord, type WorkspaceRecord } from "@/lib/types";
+import { EMOJI_ICON_OPTIONS, type LibraryPageRecord, type WorkspaceRecord } from "@/lib/types";
 
 const NAV = [{ href: "/", label: "Library", icon: Images }];
 const WORKSPACE_COLLAPSE_KEY = "luminary-sidebar-workspace-collapsed";
@@ -48,6 +48,9 @@ const INDENT_PX = 16;
 type DragItem = { kind: "page" | "workspace"; id: string };
 type DropIntent = { mode: "reorder"; position: "before" | "after" } | { mode: "into"; workspaceId: string | null };
 type DropTarget = { kind: "page" | "workspace" | "root"; id: string; intent: DropIntent };
+/** One sibling in a unified page+workspace ordering list — see
+ *  getSiblings below. */
+type SiblingRef = { kind: "page" | "workspace"; id: string; order: number };
 
 /** Small icon button that opens a grid of vehicle emoji to pick from —
  *  used for both library pages and workspaces. Nested inside a draggable
@@ -153,20 +156,16 @@ export function Sidebar() {
     createPage,
     renamePage,
     deletePage,
-    setPageWorkspace,
     setPageEmoji,
-    previewReorderPages,
-    commitReorderPages,
+    reorderPage,
   } = useLibraryPages();
   const {
     workspaces,
     createWorkspace,
     renameWorkspace,
     setWorkspaceEmoji,
-    moveWorkspace,
+    reorderWorkspace,
     deleteWorkspace,
-    previewReorderWorkspaces,
-    commitReorderWorkspaces,
   } = useWorkspaces();
 
   // Drag-and-drop: one dragged item at a time, tracked in a ref (not state —
@@ -174,6 +173,50 @@ export function Sidebar() {
   // state that drives the blue insertion-line / nest-highlight indicators.
   const dragItemRef = React.useRef<DragItem | null>(null);
   const [dropTarget, setDropTarget] = React.useState<DropTarget | null>(null);
+
+  // Expanding the collapsed rail animates its width over 200ms; page names
+  // wrap onto multiple lines, and letting that text render (and re-wrap)
+  // while the box is still narrower than its final width made every row's
+  // height jump around mid-transition — the "spasming" hover highlight and
+  // text. Showing the text only once the width transition has actually
+  // finished avoids any reflow happening while the box is an intermediate
+  // size. Collapsing hides the text immediately, before the box shrinks, for
+  // the same reason.
+  const [textVisible, setTextVisible] = React.useState(!collapsed);
+  const asideRef = React.useRef<HTMLElement>(null);
+  const didMountRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      setTextVisible(!collapsed);
+      return;
+    }
+    if (collapsed) {
+      setTextVisible(false);
+      return;
+    }
+    const el = asideRef.current;
+    if (!el) {
+      setTextVisible(true);
+      return;
+    }
+    let done = false;
+    function onEnd(e: TransitionEvent) {
+      if (e.propertyName === "width") {
+        done = true;
+        setTextVisible(true);
+      }
+    }
+    el.addEventListener("transitionend", onEnd);
+    const fallback = setTimeout(() => {
+      if (!done) setTextVisible(true);
+    }, 240);
+    return () => {
+      el.removeEventListener("transitionend", onEnd);
+      clearTimeout(fallback);
+    };
+  }, [collapsed]);
 
   React.useEffect(() => {
     try {
@@ -293,6 +336,14 @@ export function Sidebar() {
   }
 
   // --- Drag and drop -------------------------------------------------
+  //
+  // Pages and workspaces share one ordering space per parent container
+  // (root, or inside a given workspace) via each record's numeric `order`.
+  // Rendering sorts by it, so a page and a workspace can sit in any order
+  // relative to each other — dragging one above or below the other is just
+  // picking a new `order` value, using the classic "midpoint between the
+  // two neighbors" trick (fractional indexing) so moving one item never
+  // requires touching any of its siblings.
 
   function wouldCreateCycle(dragWorkspaceId: string, candidateParentId: string): boolean {
     let cur: string | null = candidateParentId;
@@ -303,18 +354,44 @@ export function Sidebar() {
     return false;
   }
 
-  function computeIntent(
-    targetKind: "page" | "workspace",
+  function getSiblings(containerId: string | null, excludeId?: string): SiblingRef[] {
+    const ws: SiblingRef[] = workspaces
+      .filter((w) => w.parentId === containerId && w.id !== excludeId)
+      .map((w) => ({ kind: "workspace", id: w.id, order: w.order }));
+    const pg: SiblingRef[] = pages
+      .filter((p) => p.workspaceId === containerId && p.id !== excludeId)
+      .map((p) => ({ kind: "page", id: p.id, order: p.order }));
+    return [...ws, ...pg].sort((a, b) => a.order - b.order);
+  }
+
+  function appendOrder(containerId: string | null, excludeId?: string): number {
+    const siblings = getSiblings(containerId, excludeId);
+    return siblings.length > 0 ? siblings[siblings.length - 1].order + 1 : 0;
+  }
+
+  function orderRelativeTo(
+    containerId: string | null,
     targetId: string,
-    ratio: number,
-    dragKind: "page" | "workspace"
-  ): DropIntent {
-    if (targetKind === "page") {
-      if (dragKind === "page") return { mode: "reorder", position: ratio <= 0.5 ? "before" : "after" };
-      const targetPage = pages.find((p) => p.id === targetId);
-      return { mode: "into", workspaceId: targetPage?.workspaceId ?? null };
+    position: "before" | "after",
+    excludeId: string
+  ): number {
+    const siblings = getSiblings(containerId, excludeId);
+    const idx = siblings.findIndex((s) => s.id === targetId);
+    if (idx === -1) return appendOrder(containerId, excludeId);
+    const target = siblings[idx];
+    if (position === "before") {
+      const prev = siblings[idx - 1];
+      return prev ? (prev.order + target.order) / 2 : target.order - 1;
     }
-    if (dragKind === "page") return { mode: "into", workspaceId: targetId };
+    const next = siblings[idx + 1];
+    return next ? (target.order + next.order) / 2 : target.order + 1;
+  }
+
+  // Any row (page or workspace) offers "reorder before/after" from its own
+  // top/bottom edge; a workspace additionally offers "move into it" from
+  // its middle band, since only workspaces can contain other rows.
+  function computeIntent(targetKind: "page" | "workspace", targetId: string, ratio: number): DropIntent {
+    if (targetKind === "page") return { mode: "reorder", position: ratio <= 0.5 ? "before" : "after" };
     if (ratio < 0.25) return { mode: "reorder", position: "before" };
     if (ratio > 0.75) return { mode: "reorder", position: "after" };
     return { mode: "into", workspaceId: targetId };
@@ -322,43 +399,32 @@ export function Sidebar() {
 
   async function applyDrop(drag: DragItem, target: DropTarget) {
     const { intent } = target;
+
     if (intent.mode === "into") {
+      if (drag.id === intent.workspaceId) return;
       if (drag.kind === "page") {
-        await setPageWorkspace(drag.id, intent.workspaceId);
-      } else if (
-        drag.id !== intent.workspaceId &&
-        (intent.workspaceId === null || !wouldCreateCycle(drag.id, intent.workspaceId))
-      ) {
-        await moveWorkspace(drag.id, intent.workspaceId);
+        await reorderPage(drag.id, appendOrder(intent.workspaceId, drag.id), intent.workspaceId);
+      } else if (intent.workspaceId === null || !wouldCreateCycle(drag.id, intent.workspaceId)) {
+        await reorderWorkspace(drag.id, appendOrder(intent.workspaceId, drag.id), intent.workspaceId);
       }
       return;
     }
 
-    if (drag.kind === "page" && target.kind === "page") {
-      const dragPage = pages.find((p) => p.id === drag.id);
-      const targetPage = pages.find((p) => p.id === target.id);
-      if (!dragPage || !targetPage) return;
-      const allIds = pages.map((p) => p.id).filter((id) => id !== drag.id);
-      const idx = allIds.indexOf(target.id);
-      allIds.splice(intent.position === "before" ? idx : idx + 1, 0, drag.id);
-      previewReorderPages(allIds);
-      commitReorderPages(allIds);
-      if (dragPage.workspaceId !== targetPage.workspaceId) {
-        await setPageWorkspace(drag.id, targetPage.workspaceId);
-      }
-    } else if (drag.kind === "workspace" && target.kind === "workspace") {
-      const dragWs = workspaces.find((w) => w.id === drag.id);
-      const targetWs = workspaces.find((w) => w.id === target.id);
-      if (!dragWs || !targetWs) return;
-      if (targetWs.parentId !== null && wouldCreateCycle(drag.id, targetWs.parentId)) return;
-      const allIds = workspaces.map((w) => w.id).filter((id) => id !== drag.id);
-      const idx = allIds.indexOf(target.id);
-      allIds.splice(intent.position === "before" ? idx : idx + 1, 0, drag.id);
-      previewReorderWorkspaces(allIds);
-      commitReorderWorkspaces(allIds);
-      if (dragWs.parentId !== targetWs.parentId) {
-        await moveWorkspace(drag.id, targetWs.parentId);
-      }
+    const destContainer =
+      target.kind === "page"
+        ? (pages.find((p) => p.id === target.id)?.workspaceId ?? null)
+        : (workspaces.find((w) => w.id === target.id)?.parentId ?? null);
+
+    if (drag.kind === "workspace") {
+      if (destContainer === drag.id) return;
+      if (destContainer !== null && wouldCreateCycle(drag.id, destContainer)) return;
+    }
+
+    const order = orderRelativeTo(destContainer, target.id, intent.position, drag.id);
+    if (drag.kind === "page") {
+      await reorderPage(drag.id, order, destContainer);
+    } else {
+      await reorderWorkspace(drag.id, order, destContainer);
     }
   }
 
@@ -384,14 +450,14 @@ export function Sidebar() {
         e.preventDefault();
         const rect = e.currentTarget.getBoundingClientRect();
         const ratio = (e.clientY - rect.top) / rect.height;
-        const intent = computeIntent(targetKind, targetId, ratio, drag.kind);
+        const intent = computeIntent(targetKind, targetId, ratio);
         if (drag.kind === "workspace") {
           const destParent =
             intent.mode === "into"
               ? intent.workspaceId
               : targetKind === "workspace"
                 ? (workspaces.find((w) => w.id === targetId)?.parentId ?? null)
-                : null;
+                : (pages.find((p) => p.id === targetId)?.workspaceId ?? null);
           if (destParent === drag.id || (destParent !== null && wouldCreateCycle(drag.id, destParent))) {
             setDropTarget(null);
             return;
@@ -420,23 +486,18 @@ export function Sidebar() {
   // the first one" or "below the last one" to hover, so a dragged item
   // could never land in the very first or very last slot. These two zones
   // (the header, and a spacer filling the rest of the nav) fix that by
-  // aiming the drop at the current first/last sibling of the same kind —
-  // which drives the exact same reorder-before/after path as a normal
-  // row-to-row drag, so the blue insertion line still shows on that row.
+  // aiming the drop at the current first/last sibling at the root — of
+  // either kind, since ordering is unified — which drives the exact same
+  // reorder-before/after path as a normal row-to-row drag, so the blue
+  // insertion line still shows on that row.
   function rootBoundaryDropProps(edge: "top" | "bottom") {
     function boundaryTarget(): DropTarget {
       const drag = dragItemRef.current;
-      if (drag?.kind === "workspace") {
-        const siblings = workspaces.filter((w) => !w.parentId && w.id !== drag.id);
+      if (drag) {
+        const siblings = getSiblings(null, drag.id);
         const boundary = edge === "top" ? siblings[0] : siblings[siblings.length - 1];
         if (boundary) {
-          return { kind: "workspace", id: boundary.id, intent: { mode: "reorder", position: edge === "top" ? "before" : "after" } };
-        }
-      } else if (drag?.kind === "page") {
-        const siblings = pages.filter((p) => !p.workspaceId && p.id !== drag.id);
-        const boundary = edge === "top" ? siblings[0] : siblings[siblings.length - 1];
-        if (boundary) {
-          return { kind: "page", id: boundary.id, intent: { mode: "reorder", position: edge === "top" ? "before" : "after" } };
+          return { kind: boundary.kind, id: boundary.id, intent: { mode: "reorder", position: edge === "top" ? "before" : "after" } };
         }
       }
       return { kind: "root", id: `root-${edge}`, intent: { mode: "into", workspaceId: null } };
@@ -473,7 +534,6 @@ export function Sidebar() {
     const showBefore = dt?.intent.mode === "reorder" && dt.intent.position === "before";
     const showAfter = dt?.intent.mode === "reorder" && dt.intent.position === "after";
     const showInto = dt?.intent.mode === "into";
-    const displayEmoji = p.emoji ?? defaultPageEmoji(p.name);
 
     return (
       <Link
@@ -497,12 +557,13 @@ export function Sidebar() {
         {showBefore && <span className="drop-indicator-line" style={{ top: -3 }} />}
         {showAfter && <span className="drop-indicator-line" style={{ bottom: -3 }} />}
         <EmojiPickerButton
-          emoji={displayEmoji}
+          emoji={p.emoji}
+          fallbackIcon={<LibraryBig className="size-[18px] shrink-0" style={{ color: active ? "#ffffff" : "var(--sidebar-text-muted)" }} />}
           isCustom={!!p.emoji}
           label={p.name}
           onPick={(emoji) => setPageEmoji(p.id, emoji)}
         />
-        {!collapsed && (
+        {!collapsed && textVisible && (
           <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug" title={p.name}>
             {p.name}
           </span>
@@ -640,18 +701,20 @@ export function Sidebar() {
   }
 
   function renderContainer(parentId: string | null, depth: number) {
-    const childWorkspaces = workspaces.filter((w) => w.parentId === parentId);
-    const childPages = pages.filter((p) => p.workspaceId === parentId);
     return (
       <>
-        {childWorkspaces.map((w) => renderWorkspace(w, depth))}
-        {childPages.map((p) => renderPageRow(p, depth))}
+        {getSiblings(parentId).map((s) =>
+          s.kind === "workspace"
+            ? renderWorkspace(workspaces.find((w) => w.id === s.id)!, depth)
+            : renderPageRow(pages.find((p) => p.id === s.id)!, depth)
+        )}
       </>
     );
   }
 
   return (
     <aside
+      ref={asideRef}
       className={cn(
         "relative hidden h-screen flex-shrink-0 flex-col transition-[width] duration-200 ease-in-out md:flex",
         collapsed ? "w-[92px]" : "w-64"
