@@ -8,6 +8,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const url = new URL(req.url);
   const asAttachment = url.searchParams.get("download") === "1";
   const extParam = url.searchParams.get("ext");
+  const filenameParam = url.searchParams.get("filename");
   // Grid/list thumbnails pass ?w= for a resized copy instead of the full
   // original — never applied to downloads, and skipped entirely for
   // formats Cloudflare Images can't transform (r2.ts falls back to null).
@@ -25,7 +26,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   let filename: string;
   let ext: string;
   let mimeType: string;
-  let originalName = "download";
+  // Downloads pass the real name via ?filename= (the client already has it
+  // from the list response) specifically so this fast path doesn't need a
+  // DB read just to know what to call the saved file — without it, every
+  // download silently fell back to this default, saving as an extension-less
+  // "download" that Explorer/Finder couldn't preview or open correctly.
+  let originalName = filenameParam || "download";
   if (extParam) {
     ext = extParam;
     filename = `${id}.${ext}`;
@@ -37,7 +43,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     ext = image.ext;
     filename = image.filename;
     mimeType = image.mimeType;
-    originalName = image.originalName;
+    originalName = filenameParam || image.originalName;
   }
 
   if (widthParam) {
@@ -63,7 +69,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     "Cache-Control": "private, max-age=31536000, immutable",
   });
   if (asAttachment) {
-    headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(originalName)}"`);
+    // A plain ASCII fallback for older clients, plus the RFC 5987
+    // UTF-8-encoded form so names with accents/emoji/etc. still come
+    // through intact in browsers that support it (all current ones do).
+    const asciiFallback = originalName.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'");
+    headers.set(
+      "Content-Disposition",
+      `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(originalName)}`
+    );
   }
 
   return new NextResponse(file.body as unknown as ReadableStream, { headers });
