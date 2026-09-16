@@ -1,4 +1,4 @@
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { kvGet, kvPut } from "./kv";
 
 const STATE_KEY = "auth-state";
 
@@ -17,9 +17,8 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function readState(): Promise<AuthState> {
-  const { env } = await getCloudflareContext({ async: true });
   try {
-    const raw = await env.DB_KV.get(STATE_KEY);
+    const raw = await kvGet(STATE_KEY);
     return raw ? { ...EMPTY_STATE, ...JSON.parse(raw) } : { ...EMPTY_STATE };
   } catch {
     return { ...EMPTY_STATE };
@@ -27,8 +26,7 @@ async function readState(): Promise<AuthState> {
 }
 
 async function writeState(state: AuthState): Promise<void> {
-  const { env } = await getCloudflareContext({ async: true });
-  await env.DB_KV.put(STATE_KEY, JSON.stringify(state));
+  await kvPut(STATE_KEY, JSON.stringify(state));
 }
 
 /** Free attempts before any lockout kicks in ("a couple failed attempts"). */
