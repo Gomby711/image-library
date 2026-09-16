@@ -170,7 +170,7 @@ function ViewButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={cn("h-8 w-8", active && "bg-accent text-accent-foreground hover:bg-accent")}
+      className={cn("h-8 w-8", active && "bg-accent text-accent-foreground hover:bg-[var(--accent-hover)]")}
     >
       {children}
     </Button>

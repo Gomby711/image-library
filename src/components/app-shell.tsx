@@ -31,8 +31,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Compact top bar — sidebar takes over on md+ */}
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/85 px-6 py-3.5 backdrop-blur md:hidden">
           <Link href="/" className="flex items-center gap-2">
-            <span className="flex h-8 w-24 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] bg-white p-1">
-              <Image src="/brand/coverking-logo.webp" alt="Coverking" width={352} height={96} className="h-full w-full object-contain" />
+            <span
+              className="flex h-9 w-28 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] p-1.5"
+              style={{ background: "var(--accent)" }}
+            >
+              <Image
+                src="/brand/coverking-logo-blue.png"
+                alt="Coverking"
+                width={1915}
+                height={525}
+                className="h-full w-full object-contain"
+              />
             </span>
             <span className="sr-only">Coverking Asset Library</span>
           </Link>

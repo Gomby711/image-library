@@ -72,7 +72,7 @@ export async function readDb(): Promise<DbShape> {
         images: parsed.images ?? [],
         folders: parsed.folders ?? [],
         libraryPages: (parsed.libraryPages ?? []).map((p) => ({ ...p, workspaceId: p.workspaceId ?? null })),
-        workspaces: parsed.workspaces ?? [],
+        workspaces: (parsed.workspaces ?? []).map((w) => ({ ...w, parentId: w.parentId ?? null })),
         customTags: parsed.customTags ?? [],
       };
     } catch {
