@@ -960,16 +960,14 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
         style={{ borderColor: "var(--sidebar-border)" }}
       >
         {collapsed ? (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src="/brand/coverking-favicon.png"
             alt="Coverking"
-            width={512}
-            height={512}
             className="size-11 rounded-[var(--radius-md)] object-contain"
-            priority
           />
         ) : (
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src="/brand/coverking-logo-white.png"
             alt="Coverking"
