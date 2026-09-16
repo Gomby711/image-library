@@ -27,11 +27,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
         {/* Compact top bar — sidebar takes over on md+ */}
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/85 px-4 py-3 backdrop-blur md:hidden">
-          <Button variant="ghost" size="sm" onClick={() => setMobileSidebarOpen(true)} aria-label="Open menu">
+        <header className="sticky top-0 z-30 grid grid-cols-3 items-center border-b border-border bg-background/85 px-4 py-3 backdrop-blur md:hidden">
+          <Button variant="ghost" size="sm" onClick={() => setMobileSidebarOpen(true)} aria-label="Open menu" className="justify-self-start">
             <Menu className="size-5" />
           </Button>
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center justify-center">
             <span
               className="flex h-9 w-28 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] p-1.5"
               style={{ background: "var(--accent)" }}
@@ -46,7 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="sr-only">Coverking Asset Library</span>
           </Link>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center justify-end gap-1">
             <ThemeToggle className="size-8 opacity-70 hover:opacity-100" />
             <Button variant="ghost" size="sm" onClick={handleLogout} disabled={loggingOut}>
               <LogOut className="size-4" />
