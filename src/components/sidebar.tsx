@@ -39,6 +39,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useLibraryPages } from "@/hooks/use-library-pages";
@@ -1055,19 +1056,25 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
       </nav>
 
       <div className="border-t p-3" style={{ borderColor: "var(--sidebar-border)" }}>
-        <button
-          onClick={handleLogout}
-          disabled={loggingOut}
-          title={collapsed ? (loggingOut ? "Signing out…" : "Sign out") : undefined}
-          className={cn(
-            "sidebar-signout flex w-full items-center gap-2.5 rounded-[var(--radius-md)] py-2 text-sm transition-all",
-            collapsed ? "justify-center px-2" : "px-3"
-          )}
-          style={{ color: "var(--sidebar-text)" }}
-        >
-          <LogOut className="size-[15px] shrink-0" />
-          {!collapsed && <span className="whitespace-nowrap">{loggingOut ? "Signing out…" : "Sign out"}</span>}
-        </button>
+        <div className={cn("flex items-center", collapsed ? "justify-center gap-0 flex-col gap-2" : "gap-1")}>
+          <button
+            onClick={handleLogout}
+            disabled={loggingOut}
+            title={collapsed ? (loggingOut ? "Signing out…" : "Sign out") : undefined}
+            className={cn(
+              "sidebar-signout flex flex-1 items-center gap-2.5 rounded-[var(--radius-md)] py-2 text-sm transition-all",
+              collapsed ? "justify-center px-2 flex-none w-full" : "px-3"
+            )}
+            style={{ color: "var(--sidebar-text)" }}
+          >
+            <LogOut className="size-[15px] shrink-0" />
+            {!collapsed && <span className="whitespace-nowrap">{loggingOut ? "Signing out…" : "Sign out"}</span>}
+          </button>
+          <ThemeToggle
+            className={cn("py-2 opacity-70 hover:opacity-100", collapsed ? "px-2 w-full justify-center" : "px-2")}
+            style={{ color: "var(--sidebar-text)" }}
+          />
+        </div>
       </div>
 
       <Dialog open={createPageOpen} onOpenChange={setCreatePageOpen}>

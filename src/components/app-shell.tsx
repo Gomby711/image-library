@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const NAV = [{ href: "/", label: "Library" }];
@@ -63,9 +64,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
-          <Button variant="ghost" size="sm" onClick={handleLogout} disabled={loggingOut}>
-            <LogOut className="size-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <ThemeToggle className="size-8 opacity-70 hover:opacity-100" />
+            <Button variant="ghost" size="sm" onClick={handleLogout} disabled={loggingOut}>
+              <LogOut className="size-4" />
+            </Button>
+          </div>
         </header>
 
         <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8">{children}</main>

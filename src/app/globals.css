@@ -67,11 +67,41 @@
   --sidebar-hover-bg: rgba(255, 255, 255, 0.14);
 }
 
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0a0b0c;
+  --surface: #f2f4f6;
+  --surface-2: #e5e8ec;
+  --border: rgba(0, 0, 0, 0.1);
+  --muted: #eaecef;
+  --muted-foreground: rgba(0, 0, 0, 0.52);
+  /* Coverking blue unchanged */
+  --accent: #117fd1;
+  --accent-hover: #0d68b0;
+  --accent-foreground: #ffffff;
+  --destructive: oklch(0.55 0.21 25);
+  --destructive-foreground: #ffffff;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 14px rgba(0,0,0,0.1), 0 2px 5px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 36px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-glow: 0 0 0 1px rgba(17, 127, 209, 0.25), 0 6px 24px rgba(17, 127, 209, 0.15);
+
+  /* Sidebar stays Coverking blue in light mode */
+  --sidebar-bg: var(--accent);
+  --sidebar-border: rgba(255, 255, 255, 0.16);
+  --sidebar-text: rgba(255, 255, 255, 0.88);
+  --sidebar-text-muted: rgba(255, 255, 255, 0.6);
+  --sidebar-active-bg: var(--accent-hover);
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.14);
+}
+
 * {
   border-color: var(--border);
 }
 
-html {
+html:not([data-theme="light"]) {
   color-scheme: dark;
 }
 
