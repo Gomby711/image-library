@@ -26,7 +26,7 @@ interface LibraryClientProps {
 
 export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryClientProps) {
   const [search, setSearch] = React.useState("");
-  const [sort, setSort] = React.useState<SortKey>("date-desc");
+  const [sort, setSort] = React.useState<SortKey>("custom");
   const [pageSize, setPageSize] = React.useState<PageSize>(12);
   const [page, setPage] = React.useState(1);
   const [view, setView] = React.useState<ViewMode>("grid");
