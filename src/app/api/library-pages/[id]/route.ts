@@ -29,6 +29,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if ("workspaceId" in body) {
         page.workspaceId = typeof body.workspaceId === "string" ? body.workspaceId : null;
       }
+      if ("emoji" in body) {
+        page.emoji = typeof body.emoji === "string" ? body.emoji : null;
+      }
       return page;
     });
 

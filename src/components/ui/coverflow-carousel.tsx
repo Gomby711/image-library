@@ -8,6 +8,15 @@ import { cn } from "@/lib/utils";
 const useIsoLayoutEffect =
   typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
 
+// A library with hundreds of images used to mount an <img> for every single
+// slide up front, all requesting bytes at once — that's what made the
+// carousel lag, and under enough concurrent load some requests just never
+// completed, which is why images "didn't show" while scrolling quickly.
+// Only slides within this many positions of the current one actually get a
+// src (and start loading); everything else stays an empty placeholder until
+// scrolling brings it into range.
+const RENDER_WINDOW = 6;
+
 export interface CoverflowSlide {
   id: string;
   src: string;
@@ -271,37 +280,50 @@ export function CoverflowCarousel({
             className="relative select-none"
             style={{ height: "var(--cf-card)", transformStyle: "preserve-3d" }}
           >
-            {slides.map((slide, index) => (
-              <div
-                key={slide.id}
-                ref={(node) => {
-                  cardRefs.current[index] = node;
-                }}
-                role="group"
-                aria-roledescription="slide"
-                aria-label={`${index + 1} of ${count}`}
-                onClick={() => {
-                  // Open on the first click regardless of position — centering
-                  // a card before it opens made every off-center image take
-                  // two clicks, which read as "nothing happening" to users.
-                  if (index !== selected) goTo(index);
-                  onSelect?.(slide, index);
-                }}
-                className={cn(
-                  "absolute left-1/2 top-0 aspect-square overflow-hidden rounded-[var(--radius-lg)] bg-surface-2 shadow-[var(--shadow-lg)] will-change-transform cursor-pointer",
-                  cardClassName
-                )}
-                style={{ width: "var(--cf-card)" }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={slide.src}
-                  alt={slide.alt}
-                  draggable={false}
-                  className="h-full w-full select-none object-cover"
-                />
-              </div>
-            ))}
+            {slides.map((slide, index) => {
+              let offset = index - selected;
+              if (loop) {
+                offset = ((offset % count) + count) % count;
+                if (offset > count / 2) offset -= count;
+              }
+              const inWindow = Math.abs(offset) <= RENDER_WINDOW;
+
+              return (
+                <div
+                  key={slide.id}
+                  ref={(node) => {
+                    cardRefs.current[index] = node;
+                  }}
+                  role="group"
+                  aria-roledescription="slide"
+                  aria-label={`${index + 1} of ${count}`}
+                  onClick={() => {
+                    // Open on the first click regardless of position — centering
+                    // a card before it opens made every off-center image take
+                    // two clicks, which read as "nothing happening" to users.
+                    if (index !== selected) goTo(index);
+                    onSelect?.(slide, index);
+                  }}
+                  className={cn(
+                    "absolute left-1/2 top-0 aspect-square overflow-hidden rounded-[var(--radius-lg)] bg-surface-2 shadow-[var(--shadow-lg)] will-change-transform cursor-pointer",
+                    cardClassName
+                  )}
+                  style={{ width: "var(--cf-card)" }}
+                >
+                  {inWindow && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={slide.src}
+                      alt={slide.alt}
+                      draggable={false}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full select-none object-cover"
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
 

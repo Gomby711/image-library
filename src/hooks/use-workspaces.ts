@@ -52,6 +52,19 @@ export function useWorkspaces() {
     return res.ok;
   }, []);
 
+  const setWorkspaceEmoji = React.useCallback(async (id: string, emoji: string | null) => {
+    const res = await fetch(`/api/workspaces/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji }),
+    });
+    if (res.ok) {
+      const updated: WorkspaceRecord = await res.json();
+      setWorkspaces((prev) => prev.map((w) => (w.id === id ? updated : w)));
+    }
+    return res.ok;
+  }, []);
+
   // Nests (or un-nests, with null) a workspace under another — the server
   // refuses anything that would turn a workspace into its own descendant.
   const moveWorkspace = React.useCallback(async (id: string, parentId: string | null) => {
@@ -95,6 +108,7 @@ export function useWorkspaces() {
     loading,
     createWorkspace,
     renameWorkspace,
+    setWorkspaceEmoji,
     moveWorkspace,
     deleteWorkspace,
     previewReorderWorkspaces,

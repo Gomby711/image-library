@@ -51,6 +51,19 @@ export function useLibraryPages() {
     return res.ok;
   }, []);
 
+  const setPageEmoji = React.useCallback(async (id: string, emoji: string | null) => {
+    const res = await fetch(`/api/library-pages/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ emoji }),
+    });
+    if (res.ok) {
+      const updated: LibraryPageRecord = await res.json();
+      setPages((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    }
+    return res.ok;
+  }, []);
+
   const renamePage = React.useCallback(async (id: string, name: string) => {
     const res = await fetch(`/api/library-pages/${id}`, {
       method: "PATCH",
@@ -97,6 +110,7 @@ export function useLibraryPages() {
     renamePage,
     deletePage,
     setPageWorkspace,
+    setPageEmoji,
     previewReorderPages,
     commitReorderPages,
     refresh,

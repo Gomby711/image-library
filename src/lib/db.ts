@@ -71,8 +71,16 @@ export async function readDb(): Promise<DbShape> {
       db = {
         images: parsed.images ?? [],
         folders: parsed.folders ?? [],
-        libraryPages: (parsed.libraryPages ?? []).map((p) => ({ ...p, workspaceId: p.workspaceId ?? null })),
-        workspaces: (parsed.workspaces ?? []).map((w) => ({ ...w, parentId: w.parentId ?? null })),
+        libraryPages: (parsed.libraryPages ?? []).map((p) => ({
+          ...p,
+          workspaceId: p.workspaceId ?? null,
+          emoji: p.emoji ?? null,
+        })),
+        workspaces: (parsed.workspaces ?? []).map((w) => ({
+          ...w,
+          parentId: w.parentId ?? null,
+          emoji: w.emoji ?? null,
+        })),
         customTags: parsed.customTags ?? [],
       };
     } catch {
