@@ -68,7 +68,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Button>
         </header>
 
-        <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-6 py-8">{children}</main>
+        <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       </div>
     </div>
   );

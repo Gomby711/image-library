@@ -337,7 +337,7 @@ export function ImageCard({
       </div>
 
       {!reorderMode && !selectMode && (
-        <div className="flex items-center justify-end gap-1 border-t border-border px-2 py-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex items-center justify-end gap-1 border-t border-border px-2 py-1.5 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
           <IconButton onClick={onRename} label="Rename"><Pencil className="size-4" /></IconButton>
           <IconButton onClick={onEditTags} label="Edit tags"><Tag className="size-4" /></IconButton>
           <IconButton onClick={() => downloadImage(image)} label="Download"><Download className="size-4" /></IconButton>

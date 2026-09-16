@@ -57,6 +57,19 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose, goPrev, goNext]);
 
+  const touchStartX = React.useRef<number | null>(null);
+  function onTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 40) return;
+    if (dx < 0) goNext();
+    else goPrev();
+  }
+
   if (!image) return null;
 
   return (
@@ -66,6 +79,8 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
     >
       <div className="flex items-center justify-between px-5 py-4 text-white/90">
         <div className="text-sm">

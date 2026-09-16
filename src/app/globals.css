@@ -79,6 +79,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), -apple-system, "Segoe UI", Roboto, ui-sans-serif, system-ui, sans-serif;
+  overflow-x: hidden;
 }
 
 @media (prefers-reduced-motion: reduce) {

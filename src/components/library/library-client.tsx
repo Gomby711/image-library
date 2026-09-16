@@ -513,8 +513,8 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
       )}
 
       {selectMode && selectedIds.size > 0 && (
-        <div className="fixed inset-x-0 bottom-6 z-40 flex justify-center">
-          <div className="flex items-center gap-3 rounded-[var(--radius-lg)] border border-border bg-surface-2 px-4 py-2.5 shadow-[var(--shadow-lg)]">
+        <div className="fixed inset-x-2 bottom-6 z-40 flex justify-center sm:inset-x-0">
+          <div className="flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-border bg-surface-2 px-3 py-2.5 shadow-[var(--shadow-lg)] sm:gap-3 sm:px-4">
             <span className="text-sm font-medium">{selectedIds.size} selected</span>
             <Button size="sm" onClick={() => setBulkTagOpen(true)}>
               <Tag className="size-4" /> Add tag
