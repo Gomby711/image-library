@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CheckSquare, Grid3x3, LayoutList, Move, Search, Sparkles } from "lucide-react";
+import { CheckSquare, Grid3x3, LayoutList, ListChecks, Move, Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,10 @@ interface ToolbarProps {
   onToggleReorder: () => void;
   selectMode: boolean;
   onToggleSelect: () => void;
+  /** Count of currently-visible (loaded) items eligible for select-all. */
+  visibleCount?: number;
+  allVisibleSelected?: boolean;
+  onSelectAll?: () => void;
 }
 
 export function Toolbar({
@@ -44,6 +48,9 @@ export function Toolbar({
   onToggleReorder,
   selectMode,
   onToggleSelect,
+  visibleCount = 0,
+  allVisibleSelected = false,
+  onSelectAll,
 }: ToolbarProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -122,6 +129,18 @@ export function Toolbar({
           >
             <CheckSquare className="size-4" />
             {selectMode ? "Done" : "Select"}
+          </Button>
+        )}
+
+        {view !== "carousel" && selectMode && visibleCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSelectAll}
+            title={allVisibleSelected ? "Clear selection" : `Select all ${visibleCount} shown`}
+          >
+            <ListChecks className="size-4" />
+            {allVisibleSelected ? "Deselect all" : "Select all"}
           </Button>
         )}
       </div>

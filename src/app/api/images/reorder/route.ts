@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { mutateDb } from "@/lib/db";
+import { withApiErrors } from "@/lib/api-error";
 
 /**
  * Re-sequences a subset of images (e.g. everything visible in the current
@@ -9,30 +10,32 @@ import { mutateDb } from "@/lib/db";
  * scramble the position of images that page never showed.
  */
 export async function PATCH(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const ids: unknown = body.ids;
-  if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {
-    return NextResponse.json({ error: "ids must be a string array" }, { status: 400 });
-  }
-  const orderedIds = ids as string[];
-
-  await mutateDb((db) => {
-    const idSet = new Set(orderedIds);
-    const firstIdx = db.images.findIndex((img) => idSet.has(img.id));
-    if (firstIdx === -1) return;
-
-    let before = 0;
-    for (let i = 0; i < firstIdx; i++) {
-      if (!idSet.has(db.images[i].id)) before++;
+  return withApiErrors(async () => {
+    const body = await req.json().catch(() => ({}));
+    const ids: unknown = body.ids;
+    if (!Array.isArray(ids) || ids.some((id) => typeof id !== "string")) {
+      return NextResponse.json({ error: "ids must be a string array" }, { status: 400 });
     }
+    const orderedIds = ids as string[];
 
-    const untouched = db.images.filter((img) => !idSet.has(img.id));
-    const reordered = orderedIds
-      .map((id) => db.images.find((img) => img.id === id))
-      .filter((img): img is NonNullable<typeof img> => Boolean(img));
+    await mutateDb((db) => {
+      const idSet = new Set(orderedIds);
+      const firstIdx = db.images.findIndex((img) => idSet.has(img.id));
+      if (firstIdx === -1) return;
 
-    db.images = [...untouched.slice(0, before), ...reordered, ...untouched.slice(before)];
+      let before = 0;
+      for (let i = 0; i < firstIdx; i++) {
+        if (!idSet.has(db.images[i].id)) before++;
+      }
+
+      const untouched = db.images.filter((img) => !idSet.has(img.id));
+      const reordered = orderedIds
+        .map((id) => db.images.find((img) => img.id === id))
+        .filter((img): img is NonNullable<typeof img> => Boolean(img));
+
+      db.images = [...untouched.slice(0, before), ...reordered, ...untouched.slice(before)];
+    });
+
+    return NextResponse.json({ ok: true });
   });
-
-  return NextResponse.json({ ok: true });
 }

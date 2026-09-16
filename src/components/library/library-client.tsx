@@ -46,6 +46,14 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   const cardElRefs = React.useRef<Map<string, HTMLElement>>(new Map());
   const [marquee, setMarquee] = React.useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const dragStartRef = React.useRef<{ x: number; y: number } | null>(null);
+  // Viewport-relative start point, used only to measure whether the pointer
+  // has moved far enough to count as a drag (vs. a plain click on a card).
+  const dragStartClientRef = React.useRef<{ x: number; y: number } | null>(null);
+  const isDraggingRef = React.useRef(false);
+  // Set true for one tick right after a real drag ends, so the click event
+  // the browser fires on mouseup doesn't also toggle whichever card the
+  // cursor happened to land on.
+  const suppressClickRef = React.useRef(false);
   // Snapshot of whatever was already selected (by individual clicks, or an
   // earlier drag) before this marquee drag began, so a new drag adds to the
   // selection instead of replacing it outright.
@@ -110,6 +118,11 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   }
 
   function toggleSelected(id: string) {
+    // Swallow the click that immediately follows a real marquee drag — the
+    // browser fires it on mouseup regardless of what the drag already did,
+    // and without this it would flip whatever card the cursor ended on a
+    // second time.
+    if (suppressClickRef.current) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -118,24 +131,39 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     });
   }
 
-  // Rubber-band / marquee select: click-drag on empty grid space selects
-  // every card the rectangle overlaps, same as a desktop file manager.
-  // The start corner is stored in document-absolute coordinates (client +
-  // scroll offset) rather than "relative to the grid's rect right now" —
-  // that rect moves once auto-scroll kicks in, so a rect-relative start
-  // point would silently drift away from where the drag actually began.
+  function selectAllVisible() {
+    setSelectedIds(new Set(items.map((img) => img.id)));
+  }
+
+  const allVisibleSelected = items.length > 0 && items.every((img) => selectedIds.has(img.id));
+
+  function handleSelectAllToggle() {
+    if (allVisibleSelected) setSelectedIds(new Set());
+    else selectAllVisible();
+  }
+
+  const DRAG_THRESHOLD_PX = 4;
+
+  // Rubber-band / marquee select: click-drag anywhere over the grid —
+  // including starting on top of a card, not just the thin gaps between
+  // them — selects every card the rectangle overlaps, same as a desktop
+  // file manager. A short distance threshold before the rectangle appears
+  // means an ordinary click-to-toggle on a single card still works exactly
+  // as before; only a real drag engages the marquee. The start corner is
+  // stored in document-absolute coordinates (client + scroll offset) rather
+  // than "relative to the grid's rect right now" — that rect moves once
+  // auto-scroll kicks in, so a rect-relative start point would silently
+  // drift away from where the drag actually began.
   function handleGridMouseDown(e: React.MouseEvent<HTMLDivElement>) {
-    if (!selectMode || e.target !== e.currentTarget) return;
+    if (!selectMode || e.button !== 0) return;
     baseSelectionRef.current = new Set(selectedIds);
     dragStartRef.current = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
-    const rect = gridRef.current!.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setMarquee({ x0: x, y0: y, x1: x, y1: y });
+    dragStartClientRef.current = { x: e.clientX, y: e.clientY };
+    isDraggingRef.current = false;
   }
 
   React.useEffect(() => {
-    if (!marquee) return;
+    if (!selectMode) return;
 
     let lastClientX = 0;
     let lastClientY = 0;
@@ -177,6 +205,10 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     const EDGE = 60;
     const MAX_SPEED = 22;
     function autoScrollTick() {
+      if (!isDraggingRef.current) {
+        autoScrollFrame = requestAnimationFrame(autoScrollTick);
+        return;
+      }
       const distFromBottom = window.innerHeight - lastClientY;
       let speed = 0;
       if (lastClientY < EDGE) speed = -MAX_SPEED * (1 - lastClientY / EDGE);
@@ -190,13 +222,38 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     autoScrollFrame = requestAnimationFrame(autoScrollTick);
 
     function onMove(e: MouseEvent) {
+      const start = dragStartClientRef.current;
+      if (!start) return;
       lastClientX = e.clientX;
       lastClientY = e.clientY;
+      if (!isDraggingRef.current) {
+        const dx = Math.abs(e.clientX - start.x);
+        const dy = Math.abs(e.clientY - start.y);
+        if (dx < DRAG_THRESHOLD_PX && dy < DRAG_THRESHOLD_PX) return;
+        isDraggingRef.current = true;
+        const rect = gridRef.current?.getBoundingClientRect();
+        if (rect) {
+          const x = start.x - rect.left;
+          const y = start.y - rect.top;
+          setMarquee({ x0: x, y0: y, x1: x, y1: y });
+        }
+      }
+      // Dragging is a text-selection / native-image-drag hazard once it's
+      // confirmed as a real marquee — stop the browser from doing either.
+      e.preventDefault();
       computeSelection();
     }
 
     function onUp() {
+      if (isDraggingRef.current) {
+        suppressClickRef.current = true;
+        requestAnimationFrame(() => {
+          suppressClickRef.current = false;
+        });
+      }
       dragStartRef.current = null;
+      dragStartClientRef.current = null;
+      isDraggingRef.current = false;
       setMarquee(null);
     }
 
@@ -207,8 +264,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
       window.removeEventListener("mouseup", onUp);
       if (autoScrollFrame) cancelAnimationFrame(autoScrollFrame);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!marquee]);
+  }, [selectMode]);
 
   async function handleBulkApply(tags: string[]) {
     const ok = await bulkAddTags(Array.from(selectedIds), tags);
@@ -306,6 +362,9 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
         onToggleReorder={toggleReorder}
         selectMode={selectMode}
         onToggleSelect={toggleSelectMode}
+        visibleCount={items.length}
+        allVisibleSelected={allVisibleSelected}
+        onSelectAll={handleSelectAllToggle}
       />
 
       {reorderMode && (
@@ -316,7 +375,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
       {selectMode && (
         <p className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
-          Click cards to select them, or click-and-drag across empty space to select several at once.
+          Click a card to select it, click-and-drag across the grid to select several at once, or use "Select all".
         </p>
       )}
 

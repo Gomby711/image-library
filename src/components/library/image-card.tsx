@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Check, Download, GripVertical, Maximize2, Pencil, Tag, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -79,18 +78,10 @@ export function ImageCard({
 }: ImageCardProps) {
   const cardRef = React.useRef<HTMLDivElement>(null);
 
-  useGSAP(
-    () => {
-      gsap.from(cardRef.current, {
-        opacity: 0,
-        y: 14,
-        duration: 0.45,
-        ease: "power2.out",
-      });
-    },
-    { scope: cardRef }
-  );
-
+  // Mount fade is a plain CSS animation (see .card-fade-in in globals.css),
+  // not a GSAP tween — "Show all" can mount 250+ of these at once, and
+  // spinning up that many individual GSAP tweens simultaneously is exactly
+  // what made switching page size feel like it hung.
   function onMouseEnter() {
     if (reorderMode) return;
     gsap.to(cardRef.current, { y: -4, duration: 0.25, ease: "power2.out" });
@@ -185,7 +176,7 @@ export function ImageCard({
         {...dragProps}
         onClick={selectMode ? onToggleSelect : undefined}
         className={cn(
-          "flex items-center gap-4 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]",
+          "card-fade-in flex items-center gap-4 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]",
           reorderMode && "cursor-grab active:cursor-grabbing",
           selectMode && "cursor-pointer",
           selected && "ring-2 ring-accent"
@@ -198,7 +189,23 @@ export function ImageCard({
           className="size-14 shrink-0 overflow-hidden rounded-[var(--radius-sm)] bg-surface-2"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={fileUrl(image, { width: THUMB_WIDTH })} alt={image.originalName} className="h-full w-full object-cover" />
+          <img
+            src={fileUrl(image, { width: THUMB_WIDTH })}
+            alt={image.originalName}
+            draggable={false}
+            loading="lazy"
+            decoding="async"
+            onError={(e) => {
+              const el = e.currentTarget;
+              // A resized copy can occasionally fail (transform hiccup, cold
+              // cache) — fall back to the untransformed original once
+              // instead of leaving a broken-image glyph in its place.
+              if (el.dataset.fallback) return;
+              el.dataset.fallback = "1";
+              el.src = fileUrl(image);
+            }}
+            className="h-full w-full object-cover"
+          />
         </button>
         <div className="min-w-0 flex-1">
           {NameLabel}
@@ -239,7 +246,7 @@ export function ImageCard({
       onClick={selectMode ? onToggleSelect : undefined}
       {...dragProps}
       className={cn(
-        "group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-lg)]",
+        "card-fade-in group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-lg)]",
         reorderMode && "cursor-grab active:cursor-grabbing",
         selectMode && "cursor-pointer",
         selected && "ring-2 ring-accent"
@@ -258,6 +265,18 @@ export function ImageCard({
         <img
           src={fileUrl(image, { width: THUMB_WIDTH })}
           alt={image.originalName}
+          draggable={false}
+          loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            const el = e.currentTarget;
+            // A resized copy can occasionally fail (transform hiccup, cold
+            // cache) — fall back to the untransformed original once instead
+            // of leaving a broken-image glyph in its place.
+            if (el.dataset.fallback) return;
+            el.dataset.fallback = "1";
+            el.src = fileUrl(image);
+          }}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
         {reorderMode ? (

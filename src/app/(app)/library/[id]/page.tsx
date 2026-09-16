@@ -20,7 +20,7 @@ export default function CustomLibraryPage() {
         </div>
       ) : (
         <div className="mb-6">
-          <h1 className="font-[var(--font-display)] text-2xl font-semibold">{page?.name ?? "Library page"}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{page?.name ?? "Library page"}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {page ? (
               <>

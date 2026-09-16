@@ -29,8 +29,17 @@ export function useImages(filters: ImageFilters) {
   const [total, setTotal] = React.useState(0);
   const [loading, setLoading] = React.useState(true);
   const [uploads, setUploads] = React.useState<UploadProgressItem[]>([]);
+  // Flipping page/pageSize/sort quickly (or switching "Show all" back to a
+  // small page size) used to fire overlapping requests with no guarantee
+  // they'd resolve in order — a slower earlier request landing after a
+  // faster later one would silently overwrite it with stale items/total,
+  // which is what made pagination look like it "didn't adjust" or briefly
+  // showed the wrong page's images. Only the most recently *fired* request
+  // is ever applied.
+  const requestIdRef = React.useRef(0);
 
   const refresh = React.useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     const params = new URLSearchParams();
     params.set("sort", filters.sort);
@@ -41,10 +50,11 @@ export function useImages(filters: ImageFilters) {
     try {
       const res = await fetch(`/api/images?${params.toString()}`);
       const data: ListResponse = await res.json();
+      if (requestId !== requestIdRef.current) return;
       setItems(data.items);
       setTotal(data.total);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [filters.sort, filters.page, filters.pageSize, filters.search, filters.tag]);
 
