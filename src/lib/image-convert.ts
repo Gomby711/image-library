@@ -11,9 +11,11 @@
 
 const TARGET_BYTES = 2 * 1024 * 1024;
 
+const RAW_EMBEDDED_JPEG_EXTS = new Set(["cr2", "dng", "nef", "arw", "orf", "rw2"]);
+
 export async function convertToJpeg(buffer: Buffer, ext: string): Promise<Buffer> {
   const lower = ext.toLowerCase();
-  if (lower === "cr2") return convertCr2(buffer);
+  if (RAW_EMBEDDED_JPEG_EXTS.has(lower)) return convertCr2(buffer);
   if (lower === "heic" || lower === "heif") return convertHeic(buffer);
   throw new Error(`convertToJpeg: unsupported format "${ext}"`);
 }

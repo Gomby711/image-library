@@ -38,25 +38,47 @@ export type PageIconName = (typeof PAGE_ICON_OPTIONS)[number];
 export const ACCEPTED_EXTENSIONS = [
   "jpg",
   "jpeg",
+  "jpe",
+  "jfif",
   "png",
+  "gif",
+  "bmp",
   "tiff",
+  "tif",
   "avif",
   "webp",
   "svg",
+  "xmp",
 ] as const;
 
-/** Formats that are accepted at upload time but converted to JPEG before
- *  storage — the record is saved with ext "jpg", not the original ext. */
-export const CONVERTIBLE_EXTENSIONS = ["cr2", "heic", "heif"] as const;
+/** Formats accepted at upload time but converted to JPEG before storage —
+ *  the record is saved with ext "jpg", not the original ext. RAW formats use
+ *  the same embedded-JPEG extraction as CR2. */
+export const CONVERTIBLE_EXTENSIONS = [
+  "cr2",
+  "heic",
+  "heif",
+  "dng",
+  "nef",
+  "arw",
+  "orf",
+  "rw2",
+] as const;
 
 export const ACCEPTED_MIME_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
+  jpe: "image/jpeg",
+  jfif: "image/jpeg",
   png: "image/png",
+  gif: "image/gif",
+  bmp: "image/bmp",
   tiff: "image/tiff",
+  tif: "image/tiff",
   avif: "image/avif",
   webp: "image/webp",
   svg: "image/svg+xml",
+  xmp: "application/rdf+xml",
 };
 
 export interface ImageRecord {
