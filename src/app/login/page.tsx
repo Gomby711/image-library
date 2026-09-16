@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Eye, EyeOff, Lock } from "lucide-react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -122,13 +121,11 @@ export default function LoginPage() {
       >
         <div className="login-panel w-full max-w-sm">
           <div className="mb-8 flex items-center">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/brand/coverking-logo-white.png"
               alt="Coverking"
-              width={1915}
-              height={525}
               className="h-16 w-auto object-contain"
-              priority
             />
           </div>
 
