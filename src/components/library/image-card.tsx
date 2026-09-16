@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import gsap from "gsap";
+import { AnimatePresence, motion } from "framer-motion";
 import { Check, Download, GripVertical, Maximize2, Pencil, Tag, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,7 @@ export function ImageCard({
   onToggleSelect,
 }: ImageCardProps) {
   const cardRef = React.useRef<HTMLDivElement>(null);
+  const [imgLoaded, setImgLoaded] = React.useState(false);
 
   // Mount fade is a plain CSS animation (see .card-fade-in in globals.css),
   // not a GSAP tween — "Show all" can mount 250+ of these at once, and
@@ -216,6 +218,7 @@ export function ImageCard({
             draggable={false}
             loading="lazy"
             decoding="async"
+            onLoad={() => setImgLoaded(true)}
             onError={(e) => {
               const el = e.currentTarget;
               // A resized copy can occasionally fail (transform hiccup, cold
@@ -225,7 +228,10 @@ export function ImageCard({
               el.dataset.fallback = "1";
               el.src = fileUrl(image);
             }}
-            className="h-full w-full object-cover"
+            className={cn(
+              "h-full w-full object-cover transition-opacity duration-500",
+              imgLoaded ? "opacity-100" : "opacity-0"
+            )}
           />
         </button>
         <div className="min-w-0 flex-1">
@@ -290,6 +296,7 @@ export function ImageCard({
           draggable={false}
           loading="lazy"
           decoding="async"
+          onLoad={() => setImgLoaded(true)}
           onError={(e) => {
             const el = e.currentTarget;
             // A resized copy can occasionally fail (transform hiccup, cold
@@ -299,7 +306,10 @@ export function ImageCard({
             el.dataset.fallback = "1";
             el.src = fileUrl(image);
           }}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className={cn(
+            "h-full w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-105",
+            imgLoaded ? "opacity-100" : "opacity-0"
+          )}
         />
         {reorderMode ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -352,11 +362,24 @@ function SelectCheckbox({ selected }: { selected: boolean }) {
   return (
     <div
       className={cn(
-        "flex size-5 items-center justify-center rounded-[var(--radius-sm)] border-2 shadow-[var(--shadow-sm)] transition-colors",
-        selected ? "border-accent bg-accent text-accent-foreground" : "border-white/70 bg-black/40"
+        "flex size-5 items-center justify-center rounded-[var(--radius-sm)] border-2 shadow-[var(--shadow-sm)] transition-[colors,transform] duration-150",
+        selected
+          ? "border-accent bg-accent text-accent-foreground scale-110"
+          : "border-white/70 bg-black/40 scale-100"
       )}
     >
-      {selected && <Check className="size-3.5" />}
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", damping: 12, stiffness: 350 }}
+          >
+            <Check className="size-3.5" />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

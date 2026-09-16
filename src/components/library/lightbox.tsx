@@ -29,6 +29,7 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
   const image = images[index];
   const imgRef = React.useRef<HTMLImageElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const closingRef = React.useRef(false);
 
   useGSAP(
     () => {
@@ -37,6 +38,21 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
     },
     { dependencies: [index], scope: containerRef }
   );
+
+  function handleClose() {
+    if (closingRef.current) return;
+    closingRef.current = true;
+    gsap.to(containerRef.current, {
+      opacity: 0,
+      scale: 0.97,
+      duration: 0.18,
+      ease: "power2.in",
+      onComplete: () => {
+        closingRef.current = false;
+        onClose();
+      },
+    });
+  }
 
   const goPrev = React.useCallback(
     () => onIndexChange((index - 1 + images.length) % images.length),
@@ -49,13 +65,14 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
 
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") handleClose();
       if (e.key === "ArrowLeft") goPrev();
       if (e.key === "ArrowRight") goNext();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose, goPrev, goNext]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goPrev, goNext]);
 
   const touchStartX = React.useRef<number | null>(null);
   function onTouchStart(e: React.TouchEvent) {
@@ -77,7 +94,7 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
       ref={containerRef}
       className="fixed inset-0 z-[100] flex flex-col bg-black/90 backdrop-blur-sm"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) handleClose();
       }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
@@ -96,7 +113,7 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
           <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => downloadImage(image)} aria-label="Download">
             <Download className="size-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={onClose} aria-label="Close">
+          <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={handleClose} aria-label="Close">
             <X className="size-5" />
           </Button>
         </div>
