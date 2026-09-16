@@ -19,6 +19,32 @@ export const PRESET_TAGS = [
 
 export type PresetTag = (typeof PRESET_TAGS)[number];
 
+/** Curated vehicle emoji offered as sidebar icons for library pages and
+ *  workspaces — picking one replaces the generic page/folder glyph. */
+export const EMOJI_ICON_OPTIONS = [
+  "🚗", "🚙", "🏎️", "🚓", "🚕", "🚐", "🛻", "🚚", "🚛", "🏍️",
+  "🛵", "🚲", "🚔", "🚨", "🛺", "🚜", "🚘", "🛞", "🏁", "🔧",
+  "⛽", "🅿️", "🚦", "🛠️",
+] as const;
+
+/** Vehicle emoji this pool draws "automatic variety" from for library pages
+ *  that haven't had an icon manually chosen — utility/tool emoji (wrench,
+ *  fuel pump, parking sign…) are excluded here since they don't read as
+ *  "a kind of car". */
+const AUTO_VARIETY_POOL = EMOJI_ICON_OPTIONS.filter(
+  (e) => !["🛞", "🏁", "🔧", "⛽", "🅿️", "🚦", "🛠️"].includes(e)
+);
+
+/** Deterministically picks a vehicle emoji from a page's name, so freshly
+ *  created pages look varied and intentional out of the box instead of all
+ *  sharing one generic icon — stable across reloads (same name -> same
+ *  icon), and superseded the moment a user picks one explicitly. */
+export function defaultPageEmoji(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return AUTO_VARIETY_POOL[hash % AUTO_VARIETY_POOL.length];
+}
+
 export const ACCEPTED_EXTENSIONS = [
   "jpg",
   "jpeg",
@@ -70,6 +96,9 @@ export interface LibraryPageRecord {
   createdAt: string;
   /** Groups this page under a sidebar Workspace folder, or null if ungrouped. */
   workspaceId: string | null;
+  /** Optional emoji shown instead of the generic page icon — one of
+   *  EMOJI_ICON_OPTIONS, or null for the default icon. */
+  emoji: string | null;
 }
 
 /** A renamable sidebar folder that groups Library Pages together — collapsing
@@ -80,6 +109,9 @@ export interface WorkspaceRecord {
   name: string;
   createdAt: string;
   parentId: string | null;
+  /** Optional emoji shown instead of the generic folder icon — one of
+   *  EMOJI_ICON_OPTIONS, or null for the default icon. */
+  emoji: string | null;
 }
 
 /** A custom tag the user has typed at least once, remembered so it can be

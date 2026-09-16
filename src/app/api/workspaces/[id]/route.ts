@@ -32,6 +32,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           workspace.parentId = nextParentId;
         }
       }
+      if ("emoji" in body) {
+        workspace.emoji = typeof body.emoji === "string" ? body.emoji : null;
+      }
       return workspace;
     });
 

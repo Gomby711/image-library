@@ -3,8 +3,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
 import {
   ChevronDown,
   ChevronLeft,
@@ -37,11 +35,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { LibraryPageRecord, WorkspaceRecord } from "@/lib/types";
-
-gsap.registerPlugin(useGSAP);
+import { defaultPageEmoji, EMOJI_ICON_OPTIONS, type LibraryPageRecord, type WorkspaceRecord } from "@/lib/types";
 
 const NAV = [{ href: "/", label: "Library", icon: Images }];
 const WORKSPACE_COLLAPSE_KEY = "luminary-sidebar-workspace-collapsed";
@@ -50,6 +48,81 @@ const INDENT_PX = 16;
 type DragItem = { kind: "page" | "workspace"; id: string };
 type DropIntent = { mode: "reorder"; position: "before" | "after" } | { mode: "into"; workspaceId: string | null };
 type DropTarget = { kind: "page" | "workspace" | "root"; id: string; intent: DropIntent };
+
+/** Small icon button that opens a grid of vehicle emoji to pick from —
+ *  used for both library pages and workspaces. Nested inside a draggable
+ *  row, so every handler stops propagation to avoid also navigating,
+ *  toggling a workspace's collapse, or starting a drag. */
+function EmojiPickerButton({
+  emoji,
+  fallbackIcon,
+  isCustom,
+  label,
+  onPick,
+}: {
+  emoji: string | null;
+  fallbackIcon?: React.ReactNode;
+  isCustom: boolean;
+  label: string;
+  onPick: (emoji: string | null) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          draggable={false}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          aria-label={`Choose icon for ${label}`}
+          title="Choose icon"
+          className="flex size-[18px] shrink-0 items-center justify-center rounded transition-transform hover:scale-110"
+        >
+          {emoji ? <span className="text-[15px] leading-none">{emoji}</span> : fallbackIcon}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
+        <DropdownMenuLabel>Choose an icon</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <div className="grid grid-cols-6 gap-1 p-1">
+          {EMOJI_ICON_OPTIONS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onPick(option);
+              }}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-[var(--radius-sm)] text-lg transition-colors hover:bg-surface-2",
+                emoji === option && "bg-accent/15 ring-1 ring-accent"
+              )}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+        {isCustom && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onPick(null);
+              }}
+            >
+              Use default icon
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -75,16 +148,13 @@ export function Sidebar() {
 
   const [collapsedWorkspaces, setCollapsedWorkspaces] = React.useState<Record<string, boolean>>({});
 
-  const navRef = React.useRef<HTMLElement>(null);
-  const indicatorRef = React.useRef<HTMLDivElement>(null);
-  const itemRefs = React.useRef<Map<string, HTMLAnchorElement>>(new Map());
-
   const {
     pages,
     createPage,
     renamePage,
     deletePage,
     setPageWorkspace,
+    setPageEmoji,
     previewReorderPages,
     commitReorderPages,
   } = useLibraryPages();
@@ -92,6 +162,7 @@ export function Sidebar() {
     workspaces,
     createWorkspace,
     renameWorkspace,
+    setWorkspaceEmoji,
     moveWorkspace,
     deleteWorkspace,
     previewReorderWorkspaces,
@@ -146,30 +217,6 @@ export function Sidebar() {
   const activeHref = allLinks.find((item) =>
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
   )?.href;
-
-  // A single highlight slides between nav items on route change / collapse,
-  // instead of every link independently repainting its own background.
-  useGSAP(
-    () => {
-      const el = activeHref && itemRefs.current.get(activeHref);
-      const nav = navRef.current;
-      const indicator = indicatorRef.current;
-      if (!el || !nav || !indicator) {
-        if (indicator) gsap.to(indicator, { opacity: 0, duration: 0.15 });
-        return;
-      }
-      const navRect = nav.getBoundingClientRect();
-      const elRect = el.getBoundingClientRect();
-      gsap.to(indicator, {
-        top: elRect.top - navRect.top,
-        height: elRect.height,
-        opacity: 1,
-        duration: 0.38,
-        ease: "back.out(1.5)",
-      });
-    },
-    { dependencies: [activeHref, collapsed, pages.length, collapsedWorkspaces], scope: navRef }
-  );
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -368,25 +415,54 @@ export function Sidebar() {
     };
   }
 
-  const rootDropProps = {
-    onDragOver: (e: React.DragEvent) => {
-      if (!dragItemRef.current) return;
-      e.preventDefault();
-      setDropTarget({ kind: "root", id: "root", intent: { mode: "into", workspaceId: null } });
-    },
-    onDrop: (e: React.DragEvent) => {
-      e.preventDefault();
+  // Reordering only ever worked by hovering another row's own top/bottom
+  // half — fine for the middle of the list, but there was no row "above
+  // the first one" or "below the last one" to hover, so a dragged item
+  // could never land in the very first or very last slot. These two zones
+  // (the header, and a spacer filling the rest of the nav) fix that by
+  // aiming the drop at the current first/last sibling of the same kind —
+  // which drives the exact same reorder-before/after path as a normal
+  // row-to-row drag, so the blue insertion line still shows on that row.
+  function rootBoundaryDropProps(edge: "top" | "bottom") {
+    function boundaryTarget(): DropTarget {
       const drag = dragItemRef.current;
-      dragItemRef.current = null;
-      setDropTarget(null);
-      if (!drag) return;
-      applyDrop(drag, { kind: "root", id: "root", intent: { mode: "into", workspaceId: null } });
-    },
-    onDragLeave: (e: React.DragEvent) => {
-      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-      setDropTarget((prev) => (prev && prev.kind === "root" ? null : prev));
-    },
-  };
+      if (drag?.kind === "workspace") {
+        const siblings = workspaces.filter((w) => !w.parentId && w.id !== drag.id);
+        const boundary = edge === "top" ? siblings[0] : siblings[siblings.length - 1];
+        if (boundary) {
+          return { kind: "workspace", id: boundary.id, intent: { mode: "reorder", position: edge === "top" ? "before" : "after" } };
+        }
+      } else if (drag?.kind === "page") {
+        const siblings = pages.filter((p) => !p.workspaceId && p.id !== drag.id);
+        const boundary = edge === "top" ? siblings[0] : siblings[siblings.length - 1];
+        if (boundary) {
+          return { kind: "page", id: boundary.id, intent: { mode: "reorder", position: edge === "top" ? "before" : "after" } };
+        }
+      }
+      return { kind: "root", id: `root-${edge}`, intent: { mode: "into", workspaceId: null } };
+    }
+
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!dragItemRef.current) return;
+        e.preventDefault();
+        setDropTarget(boundaryTarget());
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        const drag = dragItemRef.current;
+        dragItemRef.current = null;
+        const dt = dropTarget;
+        setDropTarget(null);
+        if (!drag || !dt) return;
+        applyDrop(drag, dt);
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDropTarget((prev) => (prev && (prev.kind === "root" || prev.id === boundaryTarget().id) ? null : prev));
+      },
+    };
+  }
 
   // --- Rendering -------------------------------------------------------
 
@@ -397,21 +473,19 @@ export function Sidebar() {
     const showBefore = dt?.intent.mode === "reorder" && dt.intent.position === "before";
     const showAfter = dt?.intent.mode === "reorder" && dt.intent.position === "after";
     const showInto = dt?.intent.mode === "into";
+    const displayEmoji = p.emoji ?? defaultPageEmoji(p.name);
 
     return (
       <Link
         key={p.id}
         href={href}
-        ref={(el) => {
-          if (el) itemRefs.current.set(href, el);
-        }}
         title={collapsed ? p.name : undefined}
         {...dragSourceProps("page", p.id)}
         {...dropTargetProps("page", p.id)}
         className={cn(
           "group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2.5 text-sm font-medium transition-colors",
           collapsed ? "justify-center px-2" : "pr-3",
-          !active && "sidebar-link-hoverable",
+          active ? "bg-[var(--sidebar-active-bg)]" : "sidebar-link-hoverable",
           "cursor-grab active:cursor-grabbing",
           showInto && "ring-2 ring-white/70 bg-white/10"
         )}
@@ -422,9 +496,11 @@ export function Sidebar() {
       >
         {showBefore && <span className="drop-indicator-line" style={{ top: -3 }} />}
         {showAfter && <span className="drop-indicator-line" style={{ bottom: -3 }} />}
-        <LibraryBig
-          className="size-[18px] shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
-          style={{ color: active ? "#ffffff" : "var(--sidebar-text-muted)" }}
+        <EmojiPickerButton
+          emoji={displayEmoji}
+          isCustom={!!p.emoji}
+          label={p.name}
+          onPick={(emoji) => setPageEmoji(p.id, emoji)}
         />
         {!collapsed && (
           <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug" title={p.name}>
@@ -493,7 +569,13 @@ export function Sidebar() {
               style={{ transform: isCollapsed ? "rotate(-90deg)" : "none" }}
             />
           )}
-          <Folder className="size-4 shrink-0" />
+          <EmojiPickerButton
+            emoji={w.emoji}
+            fallbackIcon={<Folder className="size-4 shrink-0" />}
+            isCustom={!!w.emoji}
+            label={w.name}
+            onPick={(emoji) => setWorkspaceEmoji(w.id, emoji)}
+          />
           {!collapsed && (
             <span className="min-w-0 flex-1 truncate normal-case tracking-normal" title={w.name}>
               {w.name}
@@ -598,28 +680,33 @@ export function Sidebar() {
         href="/"
         className={cn(
           "flex items-center justify-center border-b transition-opacity hover:opacity-90",
-          collapsed ? "h-24 px-3" : "h-28 px-4"
+          collapsed ? "h-20 px-4" : "h-28 px-4"
         )}
         style={{ borderColor: "var(--sidebar-border)" }}
       >
-        <Image
-          src="/brand/coverking-logo-blue.png"
-          alt="Coverking"
-          width={1915}
-          height={525}
-          className="h-auto w-full object-contain"
-          priority
-        />
+        {collapsed ? (
+          <Image
+            src="/brand/coverking-favicon.png"
+            alt="Coverking"
+            width={512}
+            height={512}
+            className="size-11 rounded-[var(--radius-md)] object-contain"
+            priority
+          />
+        ) : (
+          <Image
+            src="/brand/coverking-logo-blue.png"
+            alt="Coverking"
+            width={1915}
+            height={525}
+            className="h-auto w-full object-contain"
+            priority
+          />
+        )}
         <span className="sr-only">Coverking Asset Library</span>
       </Link>
 
-      <nav ref={navRef} className="relative flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-3 py-4">
-        <div
-          ref={indicatorRef}
-          className="pointer-events-none absolute left-3 right-3 rounded-[var(--radius-md)]"
-          style={{ top: 0, height: 0, opacity: 0, background: "var(--sidebar-active-bg)" }}
-        />
-
+      <nav className="relative flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-3 py-4">
         {NAV.map((item) => {
           const active = activeHref === item.href;
           const Icon = item.icon;
@@ -627,14 +714,11 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              ref={(el) => {
-                if (el) itemRefs.current.set(item.href, el);
-              }}
               title={collapsed ? item.label : undefined}
               className={cn(
                 "group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2.5 text-sm font-medium transition-colors",
                 collapsed ? "justify-center px-2" : "px-3",
-                !active && "sidebar-link-hoverable"
+                active ? "bg-[var(--sidebar-active-bg)]" : "sidebar-link-hoverable"
               )}
               style={{ color: active ? "#ffffff" : "var(--sidebar-text)" }}
             >
@@ -656,7 +740,7 @@ export function Sidebar() {
               "relative mb-1 mt-4 flex items-center justify-between rounded-[var(--radius-md)] px-3 py-1",
               dropTarget?.kind === "root" && "ring-2 ring-white/70 bg-white/10"
             )}
-            {...rootDropProps}
+            {...rootBoundaryDropProps("top")}
           >
             <p
               className="sidebar-label-in whitespace-nowrap text-xs font-semibold uppercase tracking-widest"
@@ -703,6 +787,11 @@ export function Sidebar() {
             its contents here — nothing about the pages, tags, or images
             changes. */}
         {renderContainer(null, 0)}
+
+        {/* Fills the rest of the nav so dropping anywhere below the last
+            row — not just precisely on its bottom edge — still lands the
+            dragged item at the very end of the list. */}
+        <div className="min-h-8 flex-1" {...rootBoundaryDropProps("bottom")} />
       </nav>
 
       <div className="border-t p-3" style={{ borderColor: "var(--sidebar-border)" }}>

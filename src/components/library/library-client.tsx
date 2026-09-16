@@ -6,7 +6,7 @@ import { useImages } from "@/hooks/use-images";
 import { UploadDropzone } from "@/components/library/upload-dropzone";
 import { Toolbar } from "@/components/library/toolbar";
 import { Pagination } from "@/components/library/pagination";
-import { ImageCard, fileUrl } from "@/components/library/image-card";
+import { ImageCard, fileUrl, THUMB_WIDTH } from "@/components/library/image-card";
 import { Lightbox } from "@/components/library/lightbox";
 import { TagEditorDialog } from "@/components/library/tag-editor-dialog";
 import { RenameImageDialog } from "@/components/library/rename-image-dialog";
@@ -335,7 +335,12 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
   const slides: CoverflowSlide[] = items.map((img) => ({
     id: img.id,
-    src: fileUrl(img),
+    // The carousel card tops out around 260px wide — loading every image's
+    // full, often multi-MB original just to show it that small was why the
+    // carousel lagged and images could fail to render at all once a
+    // library had a lot of them (too much simultaneous bandwidth/decode
+    // work). A resized copy is plenty sharp at this size.
+    src: fileUrl(img, { width: THUMB_WIDTH }),
     alt: img.originalName,
     title: img.originalName,
     subtitle: img.tags.join(" · ") || img.aspect,

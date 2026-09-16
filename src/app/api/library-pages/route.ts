@@ -27,6 +27,7 @@ export async function POST(req: Request) {
       tag,
       createdAt: new Date().toISOString(),
       workspaceId,
+      emoji: null,
     };
 
     await mutateDb((db) => {

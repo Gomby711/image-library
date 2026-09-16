@@ -23,6 +23,7 @@ export async function POST(req: Request) {
       name,
       createdAt: new Date().toISOString(),
       parentId,
+      emoji: null,
     };
 
     await mutateDb((db) => {
