@@ -200,9 +200,31 @@ body {
 }
 .card-fade-in {
   animation: cardFadeIn 0.35s var(--ease-out-quart) both;
+  animation-delay: calc(min(var(--card-index, 0), 20) * 25ms);
 }
 @media (prefers-reduced-motion: reduce) {
   .card-fade-in { animation: none; }
+}
+
+@keyframes heroLineIn {
+  from { width: 0; opacity: 0; }
+  to { width: 56px; opacity: 1; }
+}
+@keyframes heroFadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero-line {
+  animation: heroLineIn 0.5s var(--ease-out-expo) both;
+}
+.hero-title {
+  animation: heroFadeUp 0.55s var(--ease-out-expo) 0.12s both;
+}
+.hero-sub {
+  animation: heroFadeUp 0.55s var(--ease-out-expo) 0.22s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-line, .hero-title, .hero-sub { animation: none; }
 }
 
 /* Sidebar drag-and-drop: a horizontal Coverking-blue line marking exactly

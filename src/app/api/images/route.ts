@@ -8,9 +8,11 @@ import {
   computeReferenceName,
   extensionFromFilename,
   isAcceptedExtension,
+  isConvertibleExtension,
   mimeForExtension,
 } from "@/lib/images";
 import { readDimensions } from "@/lib/image-dimensions";
+import { convertToJpeg } from "@/lib/image-convert";
 import type { ImageRecord, SortKey } from "@/lib/types";
 
 export async function GET(req: Request) {
@@ -91,25 +93,35 @@ export async function POST(req: Request) {
     const rejected: { name: string; reason: string }[] = [];
 
     for (const file of files) {
-      const ext = extensionFromFilename(file.name);
-      if (!isAcceptedExtension(ext)) {
-        rejected.push({ name: file.name, reason: `Unsupported file type ".${ext}"` });
+      const origExt = extensionFromFilename(file.name);
+      let finalExt = origExt;
+      let buffer = Buffer.from(await file.arrayBuffer()) as Buffer;
+
+      if (isConvertibleExtension(origExt)) {
+        try {
+          buffer = await convertToJpeg(buffer, origExt);
+          finalExt = "jpg";
+        } catch {
+          rejected.push({ name: file.name, reason: `Could not convert .${origExt} file` });
+          continue;
+        }
+      } else if (!isAcceptedExtension(origExt)) {
+        rejected.push({ name: file.name, reason: `Unsupported file type ".${origExt}"` });
         continue;
       }
 
       const id = randomUUID();
-      const filename = `${id}.${ext}`;
-      const buffer = Buffer.from(await file.arrayBuffer());
-      await putImageFile(filename, buffer, mimeForExtension(ext));
+      const filename = `${id}.${finalExt}`;
+      await putImageFile(filename, buffer, mimeForExtension(finalExt));
 
-      const { width, height } = readDimensions(buffer, ext);
+      const { width, height } = readDimensions(buffer, finalExt);
 
       const record: ImageRecord = {
         id,
         filename,
         originalName: file.name,
-        ext,
-        mimeType: mimeForExtension(ext),
+        ext: finalExt,
+        mimeType: mimeForExtension(finalExt),
         size: buffer.byteLength,
         width,
         height,

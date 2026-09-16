@@ -1,5 +1,5 @@
 import type { AspectBucket, ImageRecord } from "./types";
-import { ACCEPTED_EXTENSIONS, ACCEPTED_MIME_TYPES, PRESET_TAGS } from "./types";
+import { ACCEPTED_EXTENSIONS, ACCEPTED_MIME_TYPES, CONVERTIBLE_EXTENSIONS, PRESET_TAGS } from "./types";
 
 export const REFERENCE_TAG = "Reference Image";
 
@@ -82,8 +82,15 @@ export function isAcceptedExtension(ext: string): boolean {
   return ACCEPTED_EXTENSIONS.includes(ext.toLowerCase() as (typeof ACCEPTED_EXTENSIONS)[number]);
 }
 
+export function isConvertibleExtension(ext: string): boolean {
+  return CONVERTIBLE_EXTENSIONS.includes(ext.toLowerCase() as (typeof CONVERTIBLE_EXTENSIONS)[number]);
+}
+
 export function mimeForExtension(ext: string): string {
   return ACCEPTED_MIME_TYPES[ext.toLowerCase()] ?? "application/octet-stream";
 }
 
-export const ACCEPT_ATTR = ACCEPTED_EXTENSIONS.map((e) => `.${e}`).join(",");
+export const ACCEPT_ATTR = [
+  ...ACCEPTED_EXTENSIONS.map((e) => `.${e}`),
+  ...CONVERTIBLE_EXTENSIONS.map((e) => `.${e}`),
+].join(",");

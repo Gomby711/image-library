@@ -274,7 +274,7 @@ function TagFilterFields({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: boolean; onMobileClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = React.useState(false);
@@ -384,6 +384,14 @@ export function Sidebar() {
       // ignore
     }
   }, []);
+
+  const prevPathnameRef = React.useRef(pathname);
+  React.useEffect(() => {
+    if (pathname !== prevPathnameRef.current) {
+      prevPathnameRef.current = pathname;
+      onMobileClose?.();
+    }
+  }, [pathname, onMobileClose]);
 
   function toggleCollapsed() {
     setCollapsed((c) => {
@@ -892,10 +900,20 @@ export function Sidebar() {
   }
 
   return (
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 md:hidden"
+          onClick={onMobileClose}
+          aria-hidden="true"
+        />
+      )}
     <aside
       ref={asideRef}
       className={cn(
-        "relative hidden h-screen flex-shrink-0 flex-col transition-[width] duration-200 ease-in-out md:flex",
+        "relative h-screen flex-shrink-0 flex-col transition-[width] duration-200 ease-in-out",
+        "hidden md:flex",
+        mobileOpen && "flex fixed inset-y-0 left-0 z-50 md:relative md:inset-auto md:z-auto",
         collapsed ? "w-[92px]" : "w-64"
       )}
       style={{ backgroundColor: "var(--sidebar-bg)" }}
@@ -1190,5 +1208,6 @@ export function Sidebar() {
         </DialogContent>
       </Dialog>
     </aside>
+    </>
   );
 }

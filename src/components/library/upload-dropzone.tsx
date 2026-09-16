@@ -64,7 +64,7 @@ export function UploadDropzone({ onFiles, uploads }: UploadDropzoneProps) {
         <p className="text-sm font-medium text-foreground">
           Drag &amp; drop images, or <span className="text-accent underline-offset-4 group-hover:underline">browse</span>
         </p>
-        <p className="text-xs text-muted-foreground">JPG, PNG, TIFF, AVIF, WEBP, SVG</p>
+        <p className="text-xs text-muted-foreground">JPG, PNG, TIFF, AVIF, WEBP, SVG, HEIC, CR2</p>
         <input
           ref={inputRef}
           type="file"
