@@ -49,9 +49,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (widthParam) {
     const resized = await getResizedImageFile(filename, ext, widthParam);
     if (resized) {
-      return new NextResponse(resized.body as unknown as ReadableStream, {
+      return new NextResponse(resized.buffer, {
         headers: {
           "Content-Type": resized.contentType,
+          "Content-Length": String(resized.buffer.byteLength),
           "Cache-Control": "private, max-age=31536000, immutable",
         },
       });
@@ -63,9 +64,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const file = await getImageFile(filename);
   if (!file) return NextResponse.json({ error: "File missing in storage" }, { status: 404 });
 
+  // Buffered fully in r2.ts rather than streamed straight through — a raw
+  // R2 stream relayed through Next's Route Handler -> the OpenNext
+  // Cloudflare shim -> the actual edge Response could get cut short for
+  // larger files without ever raising an error, which is what "the image
+  // only loads/downloads half" was: a silently truncated byte stream that
+  // still decodes as a (partial) image instead of failing outright.
   const headers = new Headers({
     "Content-Type": file.contentType ?? mimeType,
-    "Content-Length": String(file.size),
+    "Content-Length": String(file.buffer.byteLength),
     "Cache-Control": "private, max-age=31536000, immutable",
   });
   if (asAttachment) {
@@ -87,5 +94,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
   }
 
-  return new NextResponse(file.body as unknown as ReadableStream, { headers });
+  return new NextResponse(file.buffer, { headers });
 }

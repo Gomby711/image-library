@@ -10,14 +10,25 @@ export async function putImageFile(filename: string, buffer: Buffer, contentType
   await bucket.put(filename, buffer, { httpMetadata: { contentType } });
 }
 
+/** Fully drains any ReadableStream into a single ArrayBuffer. Used instead
+ *  of handing a stream straight to the Response body: piping a raw R2/Images
+ *  stream through several adapter layers (Next's Route Handler -> the
+ *  OpenNext Cloudflare shim -> the actual edge Response) could have the
+ *  underlying stream cut short for larger files — which doesn't throw or
+ *  fire an error on the client, it just silently renders as a partially
+ *  decoded ("half loaded") image or a truncated download. Buffering
+ *  completely server-side means the response either has every byte or the
+ *  request fails outright — never a silent partial file. */
+async function readAll(stream: ReadableStream): Promise<ArrayBuffer> {
+  return await new Response(stream as unknown as BodyInit).arrayBuffer();
+}
+
 export async function getImageFile(filename: string) {
   const bucket = await getBucket();
   const obj = await bucket.get(filename);
   if (!obj) return null;
-  // `obj.body` is workers-types' own ReadableStream declaration, structurally
-  // identical to DOM's at runtime but a distinct type — left uncast here and
-  // cast once at the actual NextResponse call site instead.
-  return { body: obj.body, contentType: obj.httpMetadata?.contentType, size: obj.size };
+  const buffer = await obj.arrayBuffer();
+  return { buffer, contentType: obj.httpMetadata?.contentType, size: obj.size };
 }
 
 /** Formats Cloudflare Images can actually transform — notably not svg or
@@ -44,7 +55,8 @@ export async function getResizedImageFile(filename: string, ext: string, width: 
       format: "image/webp",
       quality: 82,
     });
-    return { body: result.image(), contentType: result.contentType() };
+    const buffer = await readAll(result.image() as unknown as ReadableStream);
+    return { buffer, contentType: result.contentType() };
   } catch {
     // Any failure (corrupt file, binding hiccup, unsupported edge case) —
     // caller falls back to the original, never a broken thumbnail.

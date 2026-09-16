@@ -13,42 +13,38 @@ import type { LibraryPageRecord } from "@/lib/types";
 function PageHero({
   page,
   setPageHeroImage,
+  uploadPageHero,
 }: {
   page: LibraryPageRecord;
   setPageHeroImage: (id: string, heroImageId: string | null) => Promise<boolean>;
+  uploadPageHero: (id: string, file: File) => Promise<boolean>;
 }) {
   const [dragActive, setDragActive] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
 
-  const heroSrc = page.heroImageId ? `/api/images/${page.heroImageId}/file?w=1600` : null;
+  const hasHero = !!page.heroImageId || !!page.heroUpload;
+  const heroSrc = hasHero ? `/api/library-pages/${page.id}/hero` : null;
 
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragActive(false);
 
-    // An image dragged from this page's own grid.
+    // An image dragged from this page's own grid — it's already a library
+    // asset, so this just points the hero at it, nothing else changes.
     const internalId = e.dataTransfer.getData(HERO_DRAG_MIME);
     if (internalId) {
       await setPageHeroImage(page.id, internalId);
       return;
     }
 
-    // A file dropped in from the desktop / file explorer — upload it (tagged
-    // for this page, same as the normal upload dropzone, when this page has
-    // a tag filter at all) and use it as hero.
+    // A file dropped in from the desktop / file explorer — this is purely
+    // decoration, so it's uploaded straight to storage and never added to
+    // the library (no db.images entry, doesn't show up in the grid).
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
-      const form = new FormData();
-      form.append("files", file);
-      if (page.tag) form.append("tags", page.tag);
-      const res = await fetch("/api/images", { method: "POST", body: form });
-      if (res.ok) {
-        const data = await res.json();
-        const created = data.created?.[0];
-        if (created) await setPageHeroImage(page.id, created.id);
-      }
+      await uploadPageHero(page.id, file);
     } finally {
       setUploading(false);
     }
@@ -111,7 +107,7 @@ function PageHero({
 
 export default function CustomLibraryPage() {
   const params = useParams<{ id: string }>();
-  const { pages, loading, setPageHeroImage } = useLibraryPages();
+  const { pages, loading, setPageHeroImage, uploadPageHero } = useLibraryPages();
   const page = pages.find((p) => p.id === params.id);
 
   return (
@@ -119,7 +115,7 @@ export default function CustomLibraryPage() {
       {loading ? (
         <Skeleton className="mb-8 h-[200px] w-full rounded-[var(--radius-lg)] sm:h-[260px] lg:h-[300px]" />
       ) : page ? (
-        <PageHero page={page} setPageHeroImage={setPageHeroImage} />
+        <PageHero page={page} setPageHeroImage={setPageHeroImage} uploadPageHero={uploadPageHero} />
       ) : (
         <div className="mb-6">
           <h1 className="text-2xl font-bold tracking-tight">Library page</h1>
