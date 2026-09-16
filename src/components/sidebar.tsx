@@ -4,16 +4,40 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Aperture,
+  Archive,
+  Bookmark,
+  Box,
+  Briefcase,
+  Camera,
   ChevronDown,
   ChevronLeft,
+  Film,
+  Flag,
   Folder,
+  FolderOpen,
   FolderPlus,
+  Gem,
+  Grid3x3,
+  Image as ImageIcon,
   Images,
+  Layers,
+  LayoutGrid,
   LibraryBig,
   LogOut,
+  Package,
+  Palette,
   Pencil,
+  PenTool,
   Plus,
+  Sparkles,
+  Star,
+  Tag,
+  Tags,
+  Video,
   X,
+  Zap,
+  type LucideIcon,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -39,11 +63,41 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EMOJI_ICON_OPTIONS, type LibraryPageRecord, type WorkspaceRecord } from "@/lib/types";
+import { PAGE_ICON_OPTIONS, type LibraryPageRecord, type PageIconName, type WorkspaceRecord } from "@/lib/types";
 
 const NAV = [{ href: "/", label: "Library", icon: Images }];
 const WORKSPACE_COLLAPSE_KEY = "luminary-sidebar-workspace-collapsed";
 const INDENT_PX = 16;
+
+// Maps each PAGE_ICON_OPTIONS name to its lucide-react component — crisp,
+// consistent SVGs read as more polished than emoji glyphs (which render
+// inconsistently across platforms) and match the rest of the app's icons.
+const PAGE_ICON_COMPONENTS: Record<PageIconName, LucideIcon> = {
+  Camera,
+  Image: ImageIcon,
+  Images,
+  Film,
+  Palette,
+  Star,
+  Bookmark,
+  Tag,
+  Tags,
+  Layers,
+  Package,
+  Archive,
+  Briefcase,
+  Sparkles,
+  Flag,
+  Gem,
+  Aperture,
+  PenTool,
+  Video,
+  FolderOpen,
+  Grid3x3,
+  LayoutGrid,
+  Box,
+  Zap,
+};
 
 type DragItem = { kind: "page" | "workspace"; id: string };
 type DropIntent = { mode: "reorder"; position: "before" | "after" } | { mode: "into"; workspaceId: string | null };
@@ -52,23 +106,25 @@ type DropTarget = { kind: "page" | "workspace" | "root"; id: string; intent: Dro
  *  getSiblings below. */
 type SiblingRef = { kind: "page" | "workspace"; id: string; order: number };
 
-/** Small icon button that opens a grid of vehicle emoji to pick from —
- *  used for both library pages and workspaces. Nested inside a draggable
- *  row, so every handler stops propagation to avoid also navigating,
- *  toggling a workspace's collapse, or starting a drag. */
-function EmojiPickerButton({
-  emoji,
+/** Small icon button that opens a grid of icons to pick from — used for
+ *  both library pages and workspaces. Nested inside a draggable row, so
+ *  every handler stops propagation to avoid also navigating, toggling a
+ *  workspace's collapse, or starting a drag. */
+function IconPickerButton({
+  icon,
+  color,
   fallbackIcon,
-  isCustom,
   label,
   onPick,
 }: {
-  emoji: string | null;
-  fallbackIcon?: React.ReactNode;
-  isCustom: boolean;
+  icon: PageIconName | null;
+  color: string;
+  fallbackIcon: React.ReactNode;
   label: string;
-  onPick: (emoji: string | null) => void;
+  onPick: (icon: PageIconName | null) => void;
 }) {
+  const PickedIcon = icon ? PAGE_ICON_COMPONENTS[icon] : null;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -83,32 +139,36 @@ function EmojiPickerButton({
           title="Choose icon"
           className="flex size-[18px] shrink-0 items-center justify-center rounded transition-transform hover:scale-110"
         >
-          {emoji ? <span className="text-[15px] leading-none">{emoji}</span> : fallbackIcon}
+          {PickedIcon ? <PickedIcon className="size-[18px]" style={{ color }} /> : fallbackIcon}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
+      <DropdownMenuContent align="start" className="w-60" onCloseAutoFocus={(e) => e.preventDefault()}>
         <DropdownMenuLabel>Choose an icon</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <div className="grid grid-cols-6 gap-1 p-1">
-          {EMOJI_ICON_OPTIONS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onPick(option);
-              }}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-[var(--radius-sm)] text-lg transition-colors hover:bg-surface-2",
-                emoji === option && "bg-accent/15 ring-1 ring-accent"
-              )}
-            >
-              {option}
-            </button>
-          ))}
+          {PAGE_ICON_OPTIONS.map((option) => {
+            const OptionIcon = PAGE_ICON_COMPONENTS[option];
+            return (
+              <button
+                key={option}
+                type="button"
+                title={option}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onPick(option);
+                }}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-[var(--radius-sm)] text-foreground transition-colors hover:bg-surface-2",
+                  icon === option && "bg-accent/15 text-accent ring-1 ring-accent"
+                )}
+              >
+                <OptionIcon className="size-4" />
+              </button>
+            );
+          })}
         </div>
-        {isCustom && (
+        {icon && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -156,14 +216,14 @@ export function Sidebar() {
     createPage,
     renamePage,
     deletePage,
-    setPageEmoji,
+    setPageIcon,
     reorderPage,
   } = useLibraryPages();
   const {
     workspaces,
     createWorkspace,
     renameWorkspace,
-    setWorkspaceEmoji,
+    setWorkspaceIcon,
     reorderWorkspace,
     deleteWorkspace,
   } = useWorkspaces();
@@ -556,12 +616,12 @@ export function Sidebar() {
       >
         {showBefore && <span className="drop-indicator-line" style={{ top: -3 }} />}
         {showAfter && <span className="drop-indicator-line" style={{ bottom: -3 }} />}
-        <EmojiPickerButton
-          emoji={p.emoji}
+        <IconPickerButton
+          icon={p.icon}
+          color={active ? "#ffffff" : "var(--sidebar-text-muted)"}
           fallbackIcon={<LibraryBig className="size-[18px] shrink-0" style={{ color: active ? "#ffffff" : "var(--sidebar-text-muted)" }} />}
-          isCustom={!!p.emoji}
           label={p.name}
-          onPick={(emoji) => setPageEmoji(p.id, emoji)}
+          onPick={(icon) => setPageIcon(p.id, icon)}
         />
         {!collapsed && textVisible && (
           <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug" title={p.name}>
@@ -630,12 +690,12 @@ export function Sidebar() {
               style={{ transform: isCollapsed ? "rotate(-90deg)" : "none" }}
             />
           )}
-          <EmojiPickerButton
-            emoji={w.emoji}
-            fallbackIcon={<Folder className="size-4 shrink-0" />}
-            isCustom={!!w.emoji}
+          <IconPickerButton
+            icon={w.icon}
+            color="var(--sidebar-text-muted)"
+            fallbackIcon={<Folder className="size-4 shrink-0" style={{ color: "var(--sidebar-text-muted)" }} />}
             label={w.name}
-            onPick={(emoji) => setWorkspaceEmoji(w.id, emoji)}
+            onPick={(icon) => setWorkspaceIcon(w.id, icon)}
           />
           {!collapsed && (
             <span className="min-w-0 flex-1 truncate normal-case tracking-normal" title={w.name}>

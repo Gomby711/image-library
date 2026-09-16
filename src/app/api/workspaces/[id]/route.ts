@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { mutateDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
-import type { DbShape } from "@/lib/types";
+import { PAGE_ICON_OPTIONS, type DbShape } from "@/lib/types";
 
 /** True if `candidateParentId` is `workspaceId` itself, or nested somewhere
  *  inside it — used to refuse a move that would turn a workspace into its
@@ -32,8 +32,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           workspace.parentId = nextParentId;
         }
       }
-      if ("emoji" in body) {
-        workspace.emoji = typeof body.emoji === "string" ? body.emoji : null;
+      if ("icon" in body) {
+        const icon = typeof body.icon === "string" ? body.icon : null;
+        workspace.icon = icon && (PAGE_ICON_OPTIONS as readonly string[]).includes(icon) ? (icon as (typeof PAGE_ICON_OPTIONS)[number]) : null;
       }
       if (typeof body.order === "number" && Number.isFinite(body.order)) {
         workspace.order = body.order;

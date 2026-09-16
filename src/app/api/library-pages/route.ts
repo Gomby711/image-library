@@ -27,7 +27,7 @@ export async function POST(req: Request) {
       tag,
       createdAt: new Date().toISOString(),
       workspaceId,
-      emoji: null,
+      icon: null,
       order: 0,
       heroImageId: null,
     };

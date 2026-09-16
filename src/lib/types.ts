@@ -20,13 +20,20 @@ export const PRESET_TAGS = [
 export type PresetTag = (typeof PRESET_TAGS)[number];
 
 /** General-purpose icon set offered for library pages and workspaces —
- *  picking one replaces the generic page/folder glyph. Deliberately not
- *  vehicle-only, so it suits any kind of collection. */
-export const EMOJI_ICON_OPTIONS = [
-  "📁", "🗂️", "📸", "🖼️", "🎬", "🏷️", "⭐", "🔥",
-  "💎", "🎯", "📌", "🧩", "🎨", "✨", "📦", "🔖",
-  "🗃️", "🧾", "📋", "💼", "🛠️", "⚙️", "🔩", "🧰",
+ *  picking one replaces the generic page/folder glyph. These are names of
+ *  lucide-react icon components (mapped to the actual components in
+ *  sidebar.tsx, which already depends on lucide-react) rather than emoji —
+ *  crisp, consistent SVGs read as more polished than emoji glyphs, which
+ *  render inconsistently across platforms and look out of place next to
+ *  the rest of the UI's icon language. */
+export const PAGE_ICON_OPTIONS = [
+  "Camera", "Image", "Images", "Film", "Palette", "Star",
+  "Bookmark", "Tag", "Tags", "Layers", "Package", "Archive",
+  "Briefcase", "Sparkles", "Flag", "Gem", "Aperture", "PenTool",
+  "Video", "FolderOpen", "Grid3x3", "LayoutGrid", "Box", "Zap",
 ] as const;
+
+export type PageIconName = (typeof PAGE_ICON_OPTIONS)[number];
 
 export const ACCEPTED_EXTENSIONS = [
   "jpg",
@@ -79,9 +86,9 @@ export interface LibraryPageRecord {
   createdAt: string;
   /** Groups this page under a sidebar Workspace folder, or null if ungrouped. */
   workspaceId: string | null;
-  /** Optional emoji shown instead of the generic page icon — one of
-   *  EMOJI_ICON_OPTIONS, or null for the default icon. */
-  emoji: string | null;
+  /** Optional icon shown instead of the generic page icon — a name from
+   *  PAGE_ICON_OPTIONS, or null for the default icon. */
+  icon: PageIconName | null;
   /** Sidebar position among siblings sharing the same workspaceId — pages
    *  and workspaces share one ordering space per parent, so either kind can
    *  be dragged above/below the other, not just within its own kind. */
@@ -98,9 +105,9 @@ export interface WorkspaceRecord {
   name: string;
   createdAt: string;
   parentId: string | null;
-  /** Optional emoji shown instead of the generic folder icon — one of
-   *  EMOJI_ICON_OPTIONS, or null for the default icon. */
-  emoji: string | null;
+  /** Optional icon shown instead of the generic folder icon — a name from
+   *  PAGE_ICON_OPTIONS, or null for the default icon. */
+  icon: PageIconName | null;
   /** Sidebar position among siblings sharing the same parentId — see
    *  LibraryPageRecord.order. */
   order: number;

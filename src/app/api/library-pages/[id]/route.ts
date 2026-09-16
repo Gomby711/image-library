@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { mutateDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
+import { PAGE_ICON_OPTIONS } from "@/lib/types";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withApiErrors(async () => {
@@ -29,8 +30,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if ("workspaceId" in body) {
         page.workspaceId = typeof body.workspaceId === "string" ? body.workspaceId : null;
       }
-      if ("emoji" in body) {
-        page.emoji = typeof body.emoji === "string" ? body.emoji : null;
+      if ("icon" in body) {
+        const icon = typeof body.icon === "string" ? body.icon : null;
+        page.icon = icon && (PAGE_ICON_OPTIONS as readonly string[]).includes(icon) ? (icon as (typeof PAGE_ICON_OPTIONS)[number]) : null;
       }
       if (typeof body.order === "number" && Number.isFinite(body.order)) {
         page.order = body.order;
