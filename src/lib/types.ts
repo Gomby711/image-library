@@ -77,6 +77,18 @@ export interface FolderRecord {
   createdAt: string;
 }
 
+/** A hero banner image dropped in from outside the library (desktop/file
+ *  explorer) — stored in R2 like any image, but deliberately never added to
+ *  db.images, so it never shows up as a library asset in the grid. Reusing
+ *  an *existing* library image as a hero (dragged from the page's own grid)
+ *  doesn't need this — it just points LibraryPageRecord.heroImageId at that
+ *  image instead. */
+export interface HeroUploadRecord {
+  filename: string;
+  ext: string;
+  mimeType: string;
+}
+
 /** A user-defined sidebar tab, optionally filtered to only the images
  *  carrying one tag — e.g. "Car Images Library" -> tag "C8 Corvette". A
  *  null tag means no filter: the page shows every image, same as the main
@@ -97,8 +109,13 @@ export interface LibraryPageRecord {
    *  and workspaces share one ordering space per parent, so either kind can
    *  be dragged above/below the other, not just within its own kind. */
   order: number;
-  /** Id of the image (if any) used as this page's hero banner. */
+  /** Id of an existing library image (if any) reused as this page's hero
+   *  banner — set by dragging a photo from the page's own grid. Mutually
+   *  exclusive with heroUpload; setting one clears the other. */
   heroImageId: string | null;
+  /** A standalone hero image dropped in from outside the library — never
+   *  added to db.images, so it never appears as a library asset. */
+  heroUpload: HeroUploadRecord | null;
 }
 
 /** A renamable sidebar folder that groups Library Pages together — collapsing

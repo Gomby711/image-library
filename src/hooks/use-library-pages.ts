@@ -67,12 +67,38 @@ export function useLibraryPages() {
     return res.ok;
   }, []);
 
+  // Reuses an existing library photo (dragged from the page's own grid) as
+  // the hero — the image stays a normal library asset, nothing is added or
+  // removed.
   const setPageHeroImage = React.useCallback(async (id: string, heroImageId: string | null) => {
     const res = await fetch(`/api/library-pages/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ heroImageId }),
     });
+    if (res.ok) {
+      const updated: LibraryPageRecord = await res.json();
+      setPages((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    }
+    return res.ok;
+  }, []);
+
+  // Sets the hero to a file dropped in from outside the library (desktop /
+  // file explorer). Uploaded straight to storage without ever becoming a
+  // db.images entry, so it never shows up as a library asset in the grid.
+  const uploadPageHero = React.useCallback(async (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/library-pages/${id}/hero`, { method: "POST", body: form });
+    if (res.ok) {
+      const updated: LibraryPageRecord = await res.json();
+      setPages((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    }
+    return res.ok;
+  }, []);
+
+  const clearPageHero = React.useCallback(async (id: string) => {
+    const res = await fetch(`/api/library-pages/${id}/hero`, { method: "DELETE" });
     if (res.ok) {
       const updated: LibraryPageRecord = await res.json();
       setPages((prev) => prev.map((p) => (p.id === id ? updated : p)));
@@ -124,6 +150,8 @@ export function useLibraryPages() {
     setPageTag,
     setPageIcon,
     setPageHeroImage,
+    uploadPageHero,
+    clearPageHero,
     reorderPage,
     refresh,
   };

@@ -86,6 +86,7 @@ export async function readDb(): Promise<DbShape> {
           // as a stale/unrecognized value.
           icon: sanitizeIcon(p.icon),
           heroImageId: p.heroImageId ?? null,
+          heroUpload: p.heroUpload ?? null,
           order: p.order,
         })),
         workspaces: (parsed.workspaces ?? []).map((w) => ({
@@ -97,6 +98,7 @@ export async function readDb(): Promise<DbShape> {
         customTags: parsed.customTags ?? [],
       };
       backfillOrder(db);
+      pullHeroImagesOutOfLibrary(db);
     } catch {
       db = { ...EMPTY_DB };
     }
@@ -163,6 +165,23 @@ function backfillOrder(db: DbShape): void {
   }
   for (const p of db.libraryPages) {
     if (typeof p.order !== "number") p.order = next(p.workspaceId);
+  }
+}
+
+/** A hero banner dropped from outside the library used to get uploaded as a
+ *  real library image (so it showed up in the grid, which nobody wanted —
+ *  the hero is meant to be decoration, not an asset). Any page whose hero
+ *  is still pointing at a db.images entry gets migrated to the standalone
+ *  heroUpload storage instead — the underlying R2 file is kept (so the hero
+ *  keeps working, unchanged), only the library-listing entry is removed. */
+function pullHeroImagesOutOfLibrary(db: DbShape): void {
+  for (const page of db.libraryPages) {
+    if (!page.heroImageId) continue;
+    const image = db.images.find((img) => img.id === page.heroImageId);
+    if (!image) continue;
+    page.heroUpload = { filename: image.filename, ext: image.ext, mimeType: image.mimeType };
+    page.heroImageId = null;
+    db.images = db.images.filter((img) => img.id !== image.id);
   }
 }
 

@@ -31,6 +31,7 @@ export async function POST(req: Request) {
       icon: null,
       order: 0,
       heroImageId: null,
+      heroUpload: null,
     };
 
     await mutateDb((db) => {
