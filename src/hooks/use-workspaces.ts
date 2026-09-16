@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { WorkspaceRecord } from "@/lib/types";
+import type { PageIconName, WorkspaceRecord } from "@/lib/types";
 
 /** Sidebar folders that group Library Page tabs — purely organizational,
  *  collapsing one just hides its member pages in the UI (see sidebar.tsx).
@@ -52,11 +52,11 @@ export function useWorkspaces() {
     return res.ok;
   }, []);
 
-  const setWorkspaceEmoji = React.useCallback(async (id: string, emoji: string | null) => {
+  const setWorkspaceIcon = React.useCallback(async (id: string, icon: PageIconName | null) => {
     const res = await fetch(`/api/workspaces/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emoji }),
+      body: JSON.stringify({ icon }),
     });
     if (res.ok) {
       const updated: WorkspaceRecord = await res.json();
@@ -92,7 +92,7 @@ export function useWorkspaces() {
     loading,
     createWorkspace,
     renameWorkspace,
-    setWorkspaceEmoji,
+    setWorkspaceIcon,
     reorderWorkspace,
     deleteWorkspace,
     refresh,

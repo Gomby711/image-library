@@ -1,5 +1,11 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import type { DbShape } from "./types";
+import { PAGE_ICON_OPTIONS, type DbShape, type PageIconName } from "./types";
+
+function sanitizeIcon(value: unknown): PageIconName | null {
+  return typeof value === "string" && (PAGE_ICON_OPTIONS as readonly string[]).includes(value)
+    ? (value as PageIconName)
+    : null;
+}
 
 const DB_KEY = "db";
 const EMPTY_DB: DbShape = { images: [], folders: [], libraryPages: [], workspaces: [], customTags: [] };
@@ -74,14 +80,18 @@ export async function readDb(): Promise<DbShape> {
         libraryPages: (parsed.libraryPages ?? []).map((p) => ({
           ...p,
           workspaceId: p.workspaceId ?? null,
-          emoji: p.emoji ?? null,
+          // A page's icon used to store a raw emoji character (e.g. "🚗") —
+          // those no longer match any option in the new lucide-icon set, so
+          // they fall back to null (the default icon) rather than rendering
+          // as a stale/unrecognized value.
+          icon: sanitizeIcon(p.icon),
           heroImageId: p.heroImageId ?? null,
           order: p.order,
         })),
         workspaces: (parsed.workspaces ?? []).map((w) => ({
           ...w,
           parentId: w.parentId ?? null,
-          emoji: w.emoji ?? null,
+          icon: sanitizeIcon(w.icon),
           order: w.order,
         })),
         customTags: parsed.customTags ?? [],

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import type { LibraryPageRecord } from "@/lib/types";
+import type { LibraryPageRecord, PageIconName } from "@/lib/types";
 
 export function useLibraryPages() {
   const [pages, setPages] = React.useState<LibraryPageRecord[]>([]);
@@ -36,11 +36,11 @@ export function useLibraryPages() {
     return null;
   }, []);
 
-  const setPageEmoji = React.useCallback(async (id: string, emoji: string | null) => {
+  const setPageIcon = React.useCallback(async (id: string, icon: PageIconName | null) => {
     const res = await fetch(`/api/library-pages/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ emoji }),
+      body: JSON.stringify({ icon }),
     });
     if (res.ok) {
       const updated: LibraryPageRecord = await res.json();
@@ -103,7 +103,7 @@ export function useLibraryPages() {
     createPage,
     renamePage,
     deletePage,
-    setPageEmoji,
+    setPageIcon,
     setPageHeroImage,
     reorderPage,
     refresh,
