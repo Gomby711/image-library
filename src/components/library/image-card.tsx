@@ -16,10 +16,14 @@ import type { ImageRecord } from "@/lib/types";
  *  Images) instead of the full original — grid/list cards use this, the
  *  lightbox and downloads don't, since a multi-MB original for a ~250px
  *  card was the other big chunk of "images take forever to load". */
-export function fileUrl(image: { id: string; ext: string }, opts?: { download?: boolean; width?: number }) {
+export function fileUrl(
+  image: { id: string; ext: string },
+  opts?: { download?: boolean; width?: number; filename?: string }
+) {
   const params = new URLSearchParams({ ext: image.ext });
   if (opts?.download) params.set("download", "1");
   if (opts?.width) params.set("w", String(opts.width));
+  if (opts?.filename) params.set("filename", opts.filename);
   return `/api/images/${image.id}/file?${params.toString()}`;
 }
 
@@ -36,7 +40,12 @@ export const HERO_DRAG_MIME = "application/x-luminary-image-id";
 
 export function downloadImage(image: ImageRecord) {
   const a = document.createElement("a");
-  a.href = fileUrl(image, { download: true });
+  // The route's ?ext= fast path (see file/route.ts) skips reading the DB
+  // entirely, so it never knew the image's real name and always fell back
+  // to a hardcoded "download" — that's why saved files had no extension,
+  // showed no preview, and ignored the site's file name. Passing the name
+  // through explicitly keeps that fast path while fixing the filename.
+  a.href = fileUrl(image, { download: true, filename: image.originalName });
   a.download = image.originalName;
   document.body.appendChild(a);
   a.click();
