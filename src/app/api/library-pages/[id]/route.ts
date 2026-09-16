@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { mutateDb } from "@/lib/db";
+import { mutateDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { deleteImageFile } from "@/lib/r2";
 import { PAGE_ICON_OPTIONS } from "@/lib/types";
+import { computeReferenceName } from "@/lib/images";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withApiErrors(async () => {
@@ -14,11 +15,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const page = db.libraryPages.find((p) => p.id === id);
       if (!page) return null;
 
-      // The display name and the tag filter are independent — renaming a
-      // page never touches which tag (if any) it's filtered to, or any
-      // image's tags.
       if (typeof body.name === "string" && body.name.trim()) {
-        page.name = body.name.trim();
+        const newName = body.name.trim();
+        const oldName = page.name;
+        const oldTag = page.tag;
+        page.name = newName;
+
+        // When the page's tag filter was named after the page (the common
+        // convention), cascade the rename: update the tag on the page, on
+        // every image carrying that tag, and in the custom-tag memory so
+        // pickers and filenames stay consistent.
+        if (oldTag !== null && oldTag === oldName && newName !== oldName) {
+          page.tag = newName;
+          for (const image of db.images) {
+            const idx = image.tags.indexOf(oldTag);
+            if (idx === -1) continue;
+            image.tags[idx] = newName;
+            const refName = computeReferenceName(image.tags, image.ext, db.images, image.id);
+            if (refName) image.originalName = refName;
+          }
+          // Rename the remembered custom-tag entry so it shows up
+          // correctly in tag pickers instead of leaving a stale old name.
+          const ctEntry = db.customTags.find((t) => t.name === oldTag);
+          if (ctEntry) {
+            ctEntry.name = newName;
+          } else {
+            rememberTags(db, [newName]);
+          }
+        }
       }
       // Explicit null clears the filter entirely (page shows every image);
       // an empty/whitespace string is treated the same as null rather than
