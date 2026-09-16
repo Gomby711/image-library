@@ -45,6 +45,10 @@ export const ACCEPTED_EXTENSIONS = [
   "svg",
 ] as const;
 
+/** Formats that are accepted at upload time but converted to JPEG before
+ *  storage — the record is saved with ext "jpg", not the original ext. */
+export const CONVERTIBLE_EXTENSIONS = ["cr2", "heic", "heif"] as const;
+
 export const ACCEPTED_MIME_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",

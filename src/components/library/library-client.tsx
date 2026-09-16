@@ -427,6 +427,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
                 if (el) cardElRefs.current.set(img.id, el);
                 else cardElRefs.current.delete(img.id);
               }}
+              style={{ "--card-index": idx } as React.CSSProperties}
               draggable={heroDraggable}
               onDragStart={(e) => handleHeroDragStart(e, img.id)}
             >
@@ -470,6 +471,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
                 if (el) cardElRefs.current.set(img.id, el);
                 else cardElRefs.current.delete(img.id);
               }}
+              style={{ "--card-index": idx } as React.CSSProperties}
               draggable={heroDraggable}
               onDragStart={(e) => handleHeroDragStart(e, img.id)}
             >

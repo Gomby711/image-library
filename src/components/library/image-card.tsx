@@ -267,7 +267,7 @@ export function ImageCard({
       onClick={selectMode ? onToggleSelect : undefined}
       {...dragProps}
       className={cn(
-        "card-fade-in group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-lg)]",
+        "card-fade-in group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-[box-shadow,border-color] hover:border-accent/40 hover:shadow-[var(--shadow-glow)]",
         reorderMode && "cursor-grab active:cursor-grabbing",
         selectMode && "cursor-pointer",
         selected && "ring-2 ring-accent",

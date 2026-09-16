@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = React.useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -25,11 +26,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
+      <Sidebar mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
 
       <div className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
         {/* Compact top bar — sidebar takes over on md+ */}
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/85 px-6 py-3.5 backdrop-blur md:hidden">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/85 px-4 py-3 backdrop-blur md:hidden">
+          <Button variant="ghost" size="sm" onClick={() => setMobileSidebarOpen(true)} aria-label="Open menu">
+            <Menu className="size-5" />
+          </Button>
           <Link href="/" className="flex items-center gap-2">
             <span
               className="flex h-9 w-28 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] p-1.5"

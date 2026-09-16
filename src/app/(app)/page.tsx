@@ -20,11 +20,11 @@ export default function LibraryPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/75 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent" />
           <div className="relative flex h-full flex-col justify-end gap-3 p-6 sm:p-8">
-            <span className="h-1 w-14 rounded-full" style={{ background: "var(--accent)" }} />
-            <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            <span className="hero-line h-1 w-14 rounded-full" style={{ background: "var(--accent)" }} />
+            <h1 className="hero-title text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Asset &amp; Reference Library
             </h1>
-            <p className="max-w-xl text-sm text-white/75 sm:text-base">
+            <p className="hero-sub max-w-xl text-sm text-white/75 sm:text-base">
               Every image in one place — tag, sort, search, and rearrange from here.
             </p>
           </div>
