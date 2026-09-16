@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { mutateDb, readDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
-import { putImageFile } from "@/lib/r2";
+import { putImageFile, deleteImageFile } from "@/lib/r2";
 import {
   classifyAspect,
   computeReferenceName,
@@ -134,17 +134,24 @@ export async function POST(req: Request) {
     }
 
     if (created.length > 0) {
-      await mutateDb((db) => {
-        // Assigned one at a time (not against a snapshot) so two reference
-        // images uploaded in the same batch number sequentially instead of
-        // both claiming "_1".
-        for (const record of created) {
-          const refName = computeReferenceName(record.tags, record.ext, db.images, record.id);
-          if (refName) record.originalName = refName;
-          db.images.unshift(record);
-        }
-        rememberTags(db, tags);
-      });
+      try {
+        await mutateDb((db) => {
+          // Assigned one at a time (not against a snapshot) so two reference
+          // images uploaded in the same batch number sequentially instead of
+          // both claiming "_1".
+          for (const record of created) {
+            const refName = computeReferenceName(record.tags, record.ext, db.images, record.id);
+            if (refName) record.originalName = refName;
+            db.images.unshift(record);
+          }
+          rememberTags(db, tags);
+        });
+      } catch (err) {
+        // DB write failed — roll back the R2 files already uploaded so they
+        // don't sit orphaned in storage forever.
+        await Promise.allSettled(created.map((r) => deleteImageFile(r.filename)));
+        throw err;
+      }
     }
 
     return NextResponse.json({ created, rejected });
