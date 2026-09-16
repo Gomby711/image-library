@@ -22,18 +22,36 @@ export function useLibraryPages() {
     refresh();
   }, [refresh]);
 
-  const createPage = React.useCallback(async (name: string, tag: string, workspaceId: string | null = null) => {
-    const res = await fetch("/api/library-pages", {
-      method: "POST",
+  const createPage = React.useCallback(
+    async (name: string, tag: string | null, workspaceId: string | null = null) => {
+      const res = await fetch("/api/library-pages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, tag, workspaceId }),
+      });
+      if (res.ok) {
+        const page: LibraryPageRecord = await res.json();
+        setPages((prev) => [...prev, page]);
+        return page;
+      }
+      return null;
+    },
+    []
+  );
+
+  // Changes which tag (if any) a page is filtered to — independent of its
+  // name. Passing null clears the filter so the page shows every image.
+  const setPageTag = React.useCallback(async (id: string, tag: string | null) => {
+    const res = await fetch(`/api/library-pages/${id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, tag, workspaceId }),
+      body: JSON.stringify({ tag }),
     });
     if (res.ok) {
-      const page: LibraryPageRecord = await res.json();
-      setPages((prev) => [...prev, page]);
-      return page;
+      const updated: LibraryPageRecord = await res.json();
+      setPages((prev) => prev.map((p) => (p.id === id ? updated : p)));
     }
-    return null;
+    return res.ok;
   }, []);
 
   const setPageIcon = React.useCallback(async (id: string, icon: PageIconName | null) => {
@@ -103,6 +121,7 @@ export function useLibraryPages() {
     createPage,
     renamePage,
     deletePage,
+    setPageTag,
     setPageIcon,
     setPageHeroImage,
     reorderPage,

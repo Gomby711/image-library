@@ -77,12 +77,16 @@ export interface FolderRecord {
   createdAt: string;
 }
 
-/** A user-defined sidebar tab that shows only images carrying one tag —
- *  e.g. "Car Images Library" -> tag "C8 Corvette". */
+/** A user-defined sidebar tab, optionally filtered to only the images
+ *  carrying one tag — e.g. "Car Images Library" -> tag "C8 Corvette". A
+ *  null tag means no filter: the page shows every image, same as the main
+ *  Library. The tag is chosen independently of the page's name (picked from
+ *  an existing tag, typed fresh, or left unset) and isn't affected by
+ *  renaming the page. */
 export interface LibraryPageRecord {
   id: string;
   name: string;
-  tag: string;
+  tag: string | null;
   createdAt: string;
   /** Groups this page under a sidebar Workspace folder, or null if ungrouped. */
   workspaceId: string | null;
