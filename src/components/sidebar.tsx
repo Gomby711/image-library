@@ -65,6 +65,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCustomTags } from "@/hooks/use-custom-tags";
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   PAGE_ICON_OPTIONS,
   PRESET_TAGS,
   type LibraryPageRecord,
@@ -234,6 +244,10 @@ function TagFilterFields({
   tagOptions: string[];
   nameForAuto: string;
 }) {
+  // Split options into presets and custom so the Select can show them in groups.
+  const presetOptions = tagOptions.filter((t) => (PRESET_TAGS as readonly string[]).includes(t));
+  const customOptions = tagOptions.filter((t) => !(PRESET_TAGS as readonly string[]).includes(t));
+
   return (
     <div className="grid gap-2">
       <Label>Filter by tag</Label>
@@ -248,34 +262,46 @@ function TagFilterFields({
           No filter — all images
         </button>
       </div>
+
       {tagMode === "custom" && (
-        <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-border p-3">
+        <div className="flex flex-col gap-2">
           {tagOptions.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {tagOptions.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTagInput(t)}
-                  className={cn(
-                    "rounded-[var(--radius-sm)] border px-2.5 py-1 text-xs font-medium transition-colors",
-                    tagInput === t
-                      ? "border-accent bg-accent text-accent-foreground"
-                      : "border-border bg-surface text-foreground hover:bg-surface-2"
-                  )}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+            <Select
+              value={tagOptions.includes(tagInput) ? tagInput : ""}
+              onValueChange={(v) => setTagInput(v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select an existing tag…" />
+              </SelectTrigger>
+              <SelectContent>
+                {presetOptions.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Preset tags</SelectLabel>
+                    {presetOptions.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {presetOptions.length > 0 && customOptions.length > 0 && <SelectSeparator />}
+                {customOptions.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>Custom tags</SelectLabel>
+                    {customOptions.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+              </SelectContent>
+            </Select>
           )}
           <Input
-            placeholder="or type a tag name"
-            value={tagInput}
+            placeholder="or type a new tag name"
+            value={tagOptions.includes(tagInput) ? "" : tagInput}
             onChange={(e) => setTagInput(e.target.value)}
           />
         </div>
       )}
+
       {tagMode === "none" && (
         <p className="text-xs text-muted-foreground">This page will show every image, same as the main Library.</p>
       )}

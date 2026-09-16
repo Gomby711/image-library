@@ -125,6 +125,16 @@ body {
   background: rgba(17, 127, 209, 0.35);
 }
 
+/* Hide scrollbar while keeping scroll functionality — used on the tag
+   selector's selected-tags strip so the bar scrolls without showing chrome. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* thin, unobtrusive scrollbars that match the surface */
 ::-webkit-scrollbar {
   width: 10px;
