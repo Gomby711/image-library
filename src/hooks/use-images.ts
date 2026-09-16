@@ -64,48 +64,78 @@ export function useImages(filters: ImageFilters) {
 
   const upload = React.useCallback(
     (files: File[], opts?: { folderId?: string | null; tags?: string[] }) => {
-      files.forEach((file) => {
-        const uploadId = `${file.name}-${Date.now()}-${Math.random()}`;
-        setUploads((prev) => [...prev, { id: uploadId, name: file.name, progress: 0, status: "uploading" }]);
+      if (files.length === 0) return;
 
-        const form = new FormData();
-        form.append("files", file);
-        if (opts?.folderId) form.append("folderId", opts.folderId);
-        if (opts?.tags?.length) form.append("tags", opts.tags.join(","));
+      // Register all files in the UI immediately so progress bars appear.
+      const batchStamp = `${Date.now()}-${Math.random()}`;
+      const ids = files.map((_, i) => `${batchStamp}-${i}`);
+      setUploads((prev) => [
+        ...prev,
+        ...files.map((file, i) => ({ id: ids[i], name: file.name, progress: 0, status: "uploading" as const })),
+      ]);
 
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/images");
-        xhr.upload.onprogress = (e) => {
-          if (!e.lengthComputable) return;
-          const progress = Math.round((e.loaded / e.total) * 100);
-          setUploads((prev) => prev.map((u) => (u.id === uploadId ? { ...u, progress } : u)));
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            setUploads((prev) => prev.map((u) => (u.id === uploadId ? { ...u, progress: 100, status: "done" } : u)));
-            refresh();
-            setTimeout(() => {
-              setUploads((prev) => prev.filter((u) => u.id !== uploadId));
-            }, 1800);
-          } else {
-            let message = "Upload failed";
-            try {
-              message = JSON.parse(xhr.responseText)?.rejected?.[0]?.reason ?? message;
-            } catch {
-              // ignore parse errors
-            }
-            setUploads((prev) =>
-              prev.map((u) => (u.id === uploadId ? { ...u, status: "error", error: message } : u))
-            );
+      // Send all files in ONE request so the server issues a single KV write
+      // instead of racing N concurrent writes across Vercel isolates (which
+      // causes most of the batch to silently fail against the KV rate limit).
+      const form = new FormData();
+      files.forEach((file) => form.append("files", file));
+      if (opts?.folderId) form.append("folderId", opts.folderId);
+      if (opts?.tags?.length) form.append("tags", opts.tags.join(","));
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/images");
+
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const progress = Math.round((e.loaded / e.total) * 100);
+        setUploads((prev) => prev.map((u) => (ids.includes(u.id) ? { ...u, progress } : u)));
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          let rejected: { name: string; reason: string }[] = [];
+          try {
+            rejected = JSON.parse(xhr.responseText)?.rejected ?? [];
+          } catch {
+            // ignore parse errors
           }
-        };
-        xhr.onerror = () => {
+          const rejectedMap = new Map(rejected.map((r) => [r.name, r.reason]));
+
           setUploads((prev) =>
-            prev.map((u) => (u.id === uploadId ? { ...u, status: "error", error: "Network error" } : u))
+            prev.map((u, _) => {
+              if (!ids.includes(u.id)) return u;
+              const reason = rejectedMap.get(u.name);
+              if (reason) return { ...u, progress: 100, status: "error" as const, error: reason };
+              return { ...u, progress: 100, status: "done" as const };
+            })
           );
-        };
-        xhr.send(form);
-      });
+
+          refresh();
+
+          setTimeout(() => {
+            // Keep errored items visible; remove the successfully uploaded ones.
+            setUploads((prev) => prev.filter((u) => !ids.includes(u.id) || u.status === "error"));
+          }, 1800);
+        } else {
+          let message = "Upload failed";
+          try {
+            message = JSON.parse(xhr.responseText)?.error ?? message;
+          } catch {
+            // ignore parse errors
+          }
+          setUploads((prev) =>
+            prev.map((u) => (ids.includes(u.id) ? { ...u, status: "error" as const, error: message } : u))
+          );
+        }
+      };
+
+      xhr.onerror = () => {
+        setUploads((prev) =>
+          prev.map((u) => (ids.includes(u.id) ? { ...u, status: "error" as const, error: "Network error" } : u))
+        );
+      };
+
+      xhr.send(form);
     },
     [refresh]
   );
