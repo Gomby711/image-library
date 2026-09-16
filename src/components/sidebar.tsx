@@ -131,67 +131,76 @@ function IconPickerButton({
   label: string;
   onPick: (icon: PageIconName | null) => void;
 }) {
+  const [open, setOpen] = React.useState(false);
   const PickedIcon = icon ? PAGE_ICON_COMPONENTS[icon] : null;
 
+  function handlePick(picked: PageIconName | null) {
+    onPick(picked);
+    setOpen(false);
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          draggable={false}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          aria-label={`Choose icon for ${label}`}
-          title="Choose icon"
-          className="flex size-[18px] shrink-0 items-center justify-center rounded transition-transform hover:scale-110"
-        >
-          {PickedIcon ? <PickedIcon className="size-[18px]" style={{ color }} /> : fallbackIcon}
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-60" onCloseAutoFocus={(e) => e.preventDefault()}>
-        <DropdownMenuLabel>Choose an icon</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <div className="grid grid-cols-6 gap-1 p-1">
-          {PAGE_ICON_OPTIONS.map((option) => {
-            const OptionIcon = PAGE_ICON_COMPONENTS[option];
-            return (
-              <button
-                key={option}
-                type="button"
-                title={option}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onPick(option);
-                }}
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-[var(--radius-sm)] text-foreground transition-colors hover:bg-surface-2",
-                  icon === option && "bg-accent/15 text-accent ring-1 ring-accent"
-                )}
-              >
-                <OptionIcon className="size-4" />
-              </button>
-            );
-          })}
-        </div>
-        {icon && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onPick(null);
-              }}
+    <>
+      <button
+        type="button"
+        draggable={false}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        aria-label={`Choose icon for ${label}`}
+        title="Choose icon"
+        className="flex size-[18px] shrink-0 items-center justify-center rounded transition-transform hover:scale-110"
+      >
+        {PickedIcon ? <PickedIcon className="size-[18px]" style={{ color }} /> : fallbackIcon}
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-[320px] p-5 sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Choose an icon</DialogTitle>
+            <DialogDescription className="sr-only">Pick an icon for {label}</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-6 gap-1.5">
+            {PAGE_ICON_OPTIONS.map((option) => {
+              const OptionIcon = PAGE_ICON_COMPONENTS[option];
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  title={option}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePick(option);
+                  }}
+                  className={cn(
+                    "flex h-12 flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] transition-colors active:scale-95",
+                    icon === option
+                      ? "bg-accent/15 text-accent ring-1 ring-accent"
+                      : "text-foreground hover:bg-surface-2"
+                  )}
+                >
+                  <OptionIcon className="size-5 shrink-0" />
+                  <span className="w-full truncate px-0.5 text-center text-[8px] leading-none text-muted-foreground">
+                    {option}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {icon && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); handlePick(null); }}
+              className="mt-1 w-full rounded-[var(--radius-md)] py-2 text-sm text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground"
             >
               Use default icon
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+            </button>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -395,15 +404,18 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
   }, [pathname, onMobileClose]);
 
   function toggleCollapsed() {
-    setCollapsed((c) => {
-      const next = !c;
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      window.localStorage.setItem("luminary-sidebar-collapsed", next ? "1" : "0");
+    } catch {}
+    if (next) {
+      const allCollapsed = Object.fromEntries(workspaces.map((w) => [w.id, true]));
+      setCollapsedWorkspaces(allCollapsed);
       try {
-        window.localStorage.setItem("luminary-sidebar-collapsed", next ? "1" : "0");
-      } catch {
-        // ignore
-      }
-      return next;
-    });
+        window.localStorage.setItem(WORKSPACE_COLLAPSE_KEY, JSON.stringify(allCollapsed));
+      } catch {}
+    }
   }
 
   function toggleWorkspaceCollapsed(id: string) {
