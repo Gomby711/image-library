@@ -102,23 +102,35 @@ export default function LoginPage() {
     <div ref={containerRef} className="grid min-h-screen w-full md:grid-cols-[1.1fr_1fr]">
       <div className="login-visual relative hidden overflow-hidden bg-surface md:block">
         <img
-          src="https://images.unsplash.com/photo-1502691876148-a84978e59af8?w=1400&q=70&auto=format&fit=crop"
-          alt="Warm-lit architectural interior"
-          className="h-full w-full object-cover opacity-90"
+          src="/brand/login-hero.jpg"
+          alt="A Coverking vehicle cover over a Ferrari"
+          // The car and the Coverking logo printed on the cover sit in the
+          // right two-thirds of the source photo — object-position keeps
+          // that subject centered in frame instead of the default center
+          // crop, which on a narrow/tall viewport would show mostly the
+          // empty garage on the left and cut the subject off entirely.
+          style={{ objectPosition: "78% 55%" }}
+          className="h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
       </div>
 
       <div className="flex items-center justify-center px-6 py-16">
         <div className="login-panel w-full max-w-sm">
-          <div className="mb-8 flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center overflow-hidden rounded-[var(--radius-md)]">
-              <Image src="/brand/gallery-icon.png" alt="" width={36} height={36} className="size-full object-cover" />
+          <div className="mb-8 flex items-center">
+            <span className="flex h-10 w-40 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] bg-white p-2">
+              <Image
+                src="/brand/coverking-logo.webp"
+                alt="Coverking"
+                width={352}
+                height={96}
+                className="h-full w-full object-contain"
+                priority
+              />
             </span>
-            <span className="font-[var(--font-display)] text-xl font-semibold">Asset Library</span>
           </div>
 
-          <h1 className="font-[var(--font-display)] text-2xl font-semibold">Welcome back</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Enter the site password to open the library.
           </p>

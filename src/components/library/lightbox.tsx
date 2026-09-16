@@ -7,6 +7,13 @@ import { ChevronLeft, ChevronRight, Download, Tag, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { downloadImage, fileUrl } from "@/components/library/image-card";
+
+/** Large enough to look sharp full-screen on a big monitor, far smaller than
+ *  most originals — requesting the full multi-MB file just to preview it was
+ *  slow and, under load, could get cut off mid-stream (a truncated JPEG
+ *  renders as only its top portion, which is what "the image only shows
+ *  halfway" was). Downloads still use the untouched original. */
+const LIGHTBOX_WIDTH = 1920;
 import { formatBytes, formatDate } from "@/lib/utils";
 import type { ImageRecord } from "@/lib/types";
 
@@ -80,7 +87,7 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
         </div>
       </div>
 
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-4 pb-4">
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-4">
         {images.length > 1 && (
           <button
             onClick={goPrev}
@@ -93,9 +100,16 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imgRef}
-          src={fileUrl(image)}
+          src={fileUrl(image, { width: LIGHTBOX_WIDTH })}
           alt={image.originalName}
-          className="max-h-full max-w-full rounded-[var(--radius-md)] object-contain shadow-[var(--shadow-lg)]"
+          draggable={false}
+          onError={(e) => {
+            const el = e.currentTarget;
+            if (el.dataset.fallback) return;
+            el.dataset.fallback = "1";
+            el.src = fileUrl(image);
+          }}
+          className="block h-auto max-h-full w-auto max-w-full rounded-[var(--radius-md)] object-contain shadow-[var(--shadow-lg)]"
         />
         {images.length > 1 && (
           <button

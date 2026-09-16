@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LibraryBig, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { cn } from "@/lib/utils";
@@ -30,10 +31,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Compact top bar — sidebar takes over on md+ */}
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/85 px-6 py-3.5 backdrop-blur md:hidden">
           <Link href="/" className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-[var(--radius-md)] bg-accent text-accent-foreground">
-              <LibraryBig className="size-4" />
+            <span className="flex h-8 w-24 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] bg-white p-1">
+              <Image src="/brand/coverking-logo.webp" alt="Coverking" width={352} height={96} className="h-full w-full object-contain" />
             </span>
-            <span className="font-[var(--font-display)] text-lg font-semibold">Asset Library</span>
+            <span className="sr-only">Coverking Asset Library</span>
           </Link>
           <nav className="flex items-center gap-1">
             {NAV.map((item) => (

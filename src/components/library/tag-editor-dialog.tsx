@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { PRESET_TAGS } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useCustomTags } from "@/hooks/use-custom-tags";
 import type { ImageRecord } from "@/lib/types";
 
 interface TagEditorDialogProps {
@@ -27,6 +28,7 @@ export function TagEditorDialog({ image, onClose, onSave }: TagEditorDialogProps
   const [tags, setTags] = React.useState<string[]>([]);
   const [customInput, setCustomInput] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const { tags: savedTags, noteTagUsed } = useCustomTags();
 
   React.useEffect(() => {
     if (image) setTags(image.tags);
@@ -40,11 +42,23 @@ export function TagEditorDialog({ image, onClose, onSave }: TagEditorDialogProps
     const value = customInput.trim();
     if (!value) return;
     if (!tags.includes(value)) setTags((prev) => [...prev, value]);
+    noteTagUsed(value);
     setCustomInput("");
   }
 
+  // Saved tags the user has typed before, minus presets and whatever's
+  // already applied here — a one-click way to reuse a tag instead of typing
+  // the same thing again.
+  const pickableSavedTags = savedTags.filter(
+    (t) => !tags.includes(t) && !(PRESET_TAGS as readonly string[]).includes(t)
+  );
+
   function removeTag(tag: string) {
     setTags((prev) => prev.filter((t) => t !== tag));
+  }
+
+  function addSaved(tag: string) {
+    if (!tags.includes(tag)) setTags((prev) => [...prev, tag]);
   }
 
   async function handleSave() {
@@ -106,6 +120,26 @@ export function TagEditorDialog({ image, onClose, onSave }: TagEditorDialogProps
               </Button>
             </div>
           </div>
+
+          {pickableSavedTags.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Saved tags — click to reuse
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {pickableSavedTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => addSaved(tag)}
+                    className="rounded-[var(--radius-sm)] border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-surface-2"
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {tags.length > 0 && (
             <div>

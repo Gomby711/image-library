@@ -2,12 +2,12 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { mutateDb, readDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
-import type { LibraryPageRecord } from "@/lib/types";
+import type { WorkspaceRecord } from "@/lib/types";
 
 export async function GET() {
   return withApiErrors(async () => {
     const db = await readDb();
-    return NextResponse.json({ pages: db.libraryPages });
+    return NextResponse.json({ workspaces: db.workspaces });
   });
 }
 
@@ -15,24 +15,18 @@ export async function POST(req: Request) {
   return withApiErrors(async () => {
     const body = await req.json().catch(() => ({}));
     const name = typeof body.name === "string" ? body.name.trim() : "";
-    const tag = typeof body.tag === "string" ? body.tag.trim() : "";
-    const workspaceId = typeof body.workspaceId === "string" ? body.workspaceId : null;
+    if (!name) return NextResponse.json({ error: "Workspace name is required" }, { status: 400 });
 
-    if (!name) return NextResponse.json({ error: "Page name is required" }, { status: 400 });
-    if (!tag) return NextResponse.json({ error: "A tag to filter by is required" }, { status: 400 });
-
-    const page: LibraryPageRecord = {
+    const workspace: WorkspaceRecord = {
       id: randomUUID(),
       name,
-      tag,
       createdAt: new Date().toISOString(),
-      workspaceId,
     };
 
     await mutateDb((db) => {
-      db.libraryPages.push(page);
+      db.workspaces.push(workspace);
     });
 
-    return NextResponse.json(page);
+    return NextResponse.json(workspace);
   });
 }

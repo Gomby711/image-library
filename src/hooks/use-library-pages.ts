@@ -22,11 +22,11 @@ export function useLibraryPages() {
     refresh();
   }, [refresh]);
 
-  const createPage = React.useCallback(async (name: string, tag: string) => {
+  const createPage = React.useCallback(async (name: string, tag: string, workspaceId: string | null = null) => {
     const res = await fetch("/api/library-pages", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, tag }),
+      body: JSON.stringify({ name, tag, workspaceId }),
     });
     if (res.ok) {
       const page: LibraryPageRecord = await res.json();
@@ -34,6 +34,21 @@ export function useLibraryPages() {
       return page;
     }
     return null;
+  }, []);
+
+  // Assigns (or clears, with null) which Workspace folder a page lives
+  // under — purely organizational, doesn't touch the page's tag or images.
+  const setPageWorkspace = React.useCallback(async (id: string, workspaceId: string | null) => {
+    const res = await fetch(`/api/library-pages/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspaceId }),
+    });
+    if (res.ok) {
+      const updated: LibraryPageRecord = await res.json();
+      setPages((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    }
+    return res.ok;
   }, []);
 
   const renamePage = React.useCallback(async (id: string, name: string) => {
@@ -81,6 +96,7 @@ export function useLibraryPages() {
     createPage,
     renamePage,
     deletePage,
+    setPageWorkspace,
     previewReorderPages,
     commitReorderPages,
     refresh,

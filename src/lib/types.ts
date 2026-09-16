@@ -68,12 +68,31 @@ export interface LibraryPageRecord {
   name: string;
   tag: string;
   createdAt: string;
+  /** Groups this page under a sidebar Workspace folder, or null if ungrouped. */
+  workspaceId: string | null;
+}
+
+/** A renamable sidebar folder that groups Library Pages together — collapsing
+ *  it hides its member pages without touching them or their tags. */
+export interface WorkspaceRecord {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+/** A custom tag the user has typed at least once, remembered so it can be
+ *  picked from a list instead of retyped every time. */
+export interface CustomTagRecord {
+  name: string;
+  createdAt: string;
 }
 
 export interface DbShape {
   images: ImageRecord[];
   folders: FolderRecord[];
   libraryPages: LibraryPageRecord[];
+  workspaces: WorkspaceRecord[];
+  customTags: CustomTagRecord[];
 }
 
 export type SortKey = "date-desc" | "date-asc" | "type-asc" | "type-desc" | "custom";
