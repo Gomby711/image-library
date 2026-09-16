@@ -40,8 +40,11 @@
   --border: rgba(245, 245, 243, 0.1);
   --muted: #1a1c1e;
   --muted-foreground: rgba(245, 245, 243, 0.58);
-  /* Coverking blue — used for hovers, active states, buttons, focus rings */
-  --accent: #0082c9;
+  /* Coverking blue — used for the sidebar, buttons, active states, focus
+     rings. --accent-hover is a lighter tint of it, used for hover/active
+     feedback on anything already using --accent as its base color. */
+  --accent: #117fd1;
+  --accent-hover: #58a5df;
   --accent-foreground: #ffffff;
   --destructive: oklch(0.62 0.21 25);
   --destructive-foreground: #f5f5f3;
@@ -49,18 +52,19 @@
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.25);
   --shadow-md: 0 6px 16px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
   --shadow-lg: 0 16px 40px rgba(0,0,0,0.5), 0 6px 16px rgba(0,0,0,0.35);
-  --shadow-glow: 0 0 0 1px rgba(0, 130, 201, 0.3), 0 8px 30px rgba(0, 130, 201, 0.2);
+  --shadow-glow: 0 0 0 1px rgba(17, 127, 209, 0.3), 0 8px 30px rgba(17, 127, 209, 0.2);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 
-  /* Vertical nav */
-  --sidebar-bg: #08090a;
-  --sidebar-border: rgba(245, 245, 243, 0.08);
-  --sidebar-text: rgba(245, 245, 243, 0.62);
-  --sidebar-text-muted: rgba(245, 245, 243, 0.34);
-  --sidebar-active-bg: rgba(0, 130, 201, 0.18);
-  --sidebar-hover-bg: rgba(245, 245, 243, 0.055);
+  /* Vertical nav — solid Coverking blue, matching the logo's own background
+     so the sidebar header logo blends straight into it. */
+  --sidebar-bg: var(--accent);
+  --sidebar-border: rgba(255, 255, 255, 0.16);
+  --sidebar-text: rgba(255, 255, 255, 0.88);
+  --sidebar-text-muted: rgba(255, 255, 255, 0.6);
+  --sidebar-active-bg: var(--accent-hover);
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.14);
 }
 
 * {
@@ -87,7 +91,7 @@ body {
 }
 
 ::selection {
-  background: rgba(0, 130, 201, 0.35);
+  background: rgba(17, 127, 209, 0.35);
 }
 
 /* thin, unobtrusive scrollbars that match the surface */
@@ -110,7 +114,7 @@ body {
 }
 .btn-lift:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 130, 201, 0.3);
+  box-shadow: 0 6px 16px rgba(17, 127, 209, 0.35);
 }
 .btn-lift:active {
   transform: translateY(0) scale(0.98);
@@ -199,4 +203,28 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .card-fade-in { animation: none; }
+}
+
+/* Sidebar drag-and-drop: a horizontal Coverking-blue line marking exactly
+   where a dragged tab page or workspace will land between two rows. Uses
+   the lighter accent tint (not the base sidebar-bg blue) so it reads
+   clearly against the sidebar's own blue background, plus a soft white
+   halo for contrast on any surface. */
+.drop-indicator-line {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--accent-hover);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+
+/* Image grid reorder: a blue ring on whichever card the dragged image is
+   currently hovering over, so the drop position is visible at a glance. */
+.grid-drop-highlight {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5) inset;
 }

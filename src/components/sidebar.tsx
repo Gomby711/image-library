@@ -9,7 +9,6 @@ import {
   ChevronDown,
   ChevronLeft,
   Folder,
-  FolderInput,
   FolderPlus,
   Images,
   LibraryBig,
@@ -38,29 +37,19 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { LibraryPageRecord } from "@/lib/types";
+import type { LibraryPageRecord, WorkspaceRecord } from "@/lib/types";
 
 gsap.registerPlugin(useGSAP);
 
 const NAV = [{ href: "/", label: "Library", icon: Images }];
 const WORKSPACE_COLLAPSE_KEY = "luminary-sidebar-workspace-collapsed";
+const INDENT_PX = 16;
 
-/** Splices a reordered subset of ids back into their original relative
- *  positions within the full list — lets drag-to-reorder stay scoped to one
- *  Workspace group (or the ungrouped root list) without disturbing where
- *  that group's pages sit among every other page. */
-function reorderWithinGroup(allIds: string[], groupIds: string[], fromIndex: number, toIndex: number): string[] {
-  const reorderedGroup = [...groupIds];
-  const [moved] = reorderedGroup.splice(fromIndex, 1);
-  reorderedGroup.splice(toIndex, 0, moved);
-  const groupSet = new Set(groupIds);
-  let gi = 0;
-  return allIds.map((id) => (groupSet.has(id) ? reorderedGroup[gi++] : id));
-}
+type DragItem = { kind: "page" | "workspace"; id: string };
+type DropIntent = { mode: "reorder"; position: "before" | "after" } | { mode: "into"; workspaceId: string | null };
+type DropTarget = { kind: "page" | "workspace" | "root"; id: string; intent: DropIntent };
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -69,6 +58,7 @@ export function Sidebar() {
   const [loggingOut, setLoggingOut] = React.useState(false);
 
   const [createPageOpen, setCreatePageOpen] = React.useState(false);
+  const [createPageParentId, setCreatePageParentId] = React.useState<string | null>(null);
   const [newName, setNewName] = React.useState("");
   const [creating, setCreating] = React.useState(false);
   const [renameTarget, setRenameTarget] = React.useState<LibraryPageRecord | null>(null);
@@ -76,6 +66,7 @@ export function Sidebar() {
   const [renaming, setRenaming] = React.useState(false);
 
   const [createWorkspaceOpen, setCreateWorkspaceOpen] = React.useState(false);
+  const [createWorkspaceParentId, setCreateWorkspaceParentId] = React.useState<string | null>(null);
   const [newWorkspaceName, setNewWorkspaceName] = React.useState("");
   const [creatingWorkspace, setCreatingWorkspace] = React.useState(false);
   const [renameWorkspaceTarget, setRenameWorkspaceTarget] = React.useState<{ id: string; name: string } | null>(null);
@@ -97,8 +88,21 @@ export function Sidebar() {
     previewReorderPages,
     commitReorderPages,
   } = useLibraryPages();
-  const { workspaces, createWorkspace, renameWorkspace, deleteWorkspace } = useWorkspaces();
-  const pageDragIndexRef = React.useRef<number | null>(null);
+  const {
+    workspaces,
+    createWorkspace,
+    renameWorkspace,
+    moveWorkspace,
+    deleteWorkspace,
+    previewReorderWorkspaces,
+    commitReorderWorkspaces,
+  } = useWorkspaces();
+
+  // Drag-and-drop: one dragged item at a time, tracked in a ref (not state —
+  // it doesn't need to trigger renders), and one "current drop target" in
+  // state that drives the blue insertion-line / nest-highlight indicators.
+  const dragItemRef = React.useRef<DragItem | null>(null);
+  const [dropTarget, setDropTarget] = React.useState<DropTarget | null>(null);
 
   React.useEffect(() => {
     try {
@@ -174,12 +178,17 @@ export function Sidebar() {
     router.refresh();
   }
 
+  function openCreatePage(parentId: string | null) {
+    setCreatePageParentId(parentId);
+    setCreatePageOpen(true);
+  }
+
   async function handleCreatePage() {
     if (!newName.trim()) return;
     setCreating(true);
     // The page's tag is just its name — creating "Car Images Library" makes a
     // "Car Images Library" tag; tag any image with it to show it on this page.
-    const page = await createPage(newName.trim(), newName.trim());
+    const page = await createPage(newName.trim(), newName.trim(), createPageParentId);
     setCreating(false);
     if (page) {
       setCreatePageOpen(false);
@@ -204,14 +213,20 @@ export function Sidebar() {
     if (pathname === `/library/${id}`) router.push("/");
   }
 
+  function openCreateWorkspace(parentId: string | null) {
+    setCreateWorkspaceParentId(parentId);
+    setCreateWorkspaceOpen(true);
+  }
+
   async function handleCreateWorkspace() {
     if (!newWorkspaceName.trim()) return;
     setCreatingWorkspace(true);
-    const workspace = await createWorkspace(newWorkspaceName.trim());
+    const workspace = await createWorkspace(newWorkspaceName.trim(), createWorkspaceParentId);
     setCreatingWorkspace(false);
     if (workspace) {
       setCreateWorkspaceOpen(false);
       setNewWorkspaceName("");
+      if (createWorkspaceParentId) setCollapsedWorkspaces((prev) => ({ ...prev, [createWorkspaceParentId]: false }));
     }
   }
 
@@ -226,14 +241,162 @@ export function Sidebar() {
   async function handleDeleteWorkspace(e: React.MouseEvent, id: string, name: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm(`Remove the "${name}" workspace? Its library pages move back to the top level — nothing is deleted.`)) return;
+    if (!window.confirm(`Remove the "${name}" workspace? Its contents move up one level — nothing is deleted.`)) return;
     await deleteWorkspace(id);
   }
 
-  function renderPageRow(p: LibraryPageRecord, groupPages: LibraryPageRecord[], index: number, indent: boolean) {
+  // --- Drag and drop -------------------------------------------------
+
+  function wouldCreateCycle(dragWorkspaceId: string, candidateParentId: string): boolean {
+    let cur: string | null = candidateParentId;
+    while (cur) {
+      if (cur === dragWorkspaceId) return true;
+      cur = workspaces.find((w) => w.id === cur)?.parentId ?? null;
+    }
+    return false;
+  }
+
+  function computeIntent(
+    targetKind: "page" | "workspace",
+    targetId: string,
+    ratio: number,
+    dragKind: "page" | "workspace"
+  ): DropIntent {
+    if (targetKind === "page") {
+      if (dragKind === "page") return { mode: "reorder", position: ratio <= 0.5 ? "before" : "after" };
+      const targetPage = pages.find((p) => p.id === targetId);
+      return { mode: "into", workspaceId: targetPage?.workspaceId ?? null };
+    }
+    if (dragKind === "page") return { mode: "into", workspaceId: targetId };
+    if (ratio < 0.25) return { mode: "reorder", position: "before" };
+    if (ratio > 0.75) return { mode: "reorder", position: "after" };
+    return { mode: "into", workspaceId: targetId };
+  }
+
+  async function applyDrop(drag: DragItem, target: DropTarget) {
+    const { intent } = target;
+    if (intent.mode === "into") {
+      if (drag.kind === "page") {
+        await setPageWorkspace(drag.id, intent.workspaceId);
+      } else if (
+        drag.id !== intent.workspaceId &&
+        (intent.workspaceId === null || !wouldCreateCycle(drag.id, intent.workspaceId))
+      ) {
+        await moveWorkspace(drag.id, intent.workspaceId);
+      }
+      return;
+    }
+
+    if (drag.kind === "page" && target.kind === "page") {
+      const dragPage = pages.find((p) => p.id === drag.id);
+      const targetPage = pages.find((p) => p.id === target.id);
+      if (!dragPage || !targetPage) return;
+      const allIds = pages.map((p) => p.id).filter((id) => id !== drag.id);
+      const idx = allIds.indexOf(target.id);
+      allIds.splice(intent.position === "before" ? idx : idx + 1, 0, drag.id);
+      previewReorderPages(allIds);
+      commitReorderPages(allIds);
+      if (dragPage.workspaceId !== targetPage.workspaceId) {
+        await setPageWorkspace(drag.id, targetPage.workspaceId);
+      }
+    } else if (drag.kind === "workspace" && target.kind === "workspace") {
+      const dragWs = workspaces.find((w) => w.id === drag.id);
+      const targetWs = workspaces.find((w) => w.id === target.id);
+      if (!dragWs || !targetWs) return;
+      if (targetWs.parentId !== null && wouldCreateCycle(drag.id, targetWs.parentId)) return;
+      const allIds = workspaces.map((w) => w.id).filter((id) => id !== drag.id);
+      const idx = allIds.indexOf(target.id);
+      allIds.splice(intent.position === "before" ? idx : idx + 1, 0, drag.id);
+      previewReorderWorkspaces(allIds);
+      commitReorderWorkspaces(allIds);
+      if (dragWs.parentId !== targetWs.parentId) {
+        await moveWorkspace(drag.id, targetWs.parentId);
+      }
+    }
+  }
+
+  function dragSourceProps(kind: DragItem["kind"], id: string) {
+    return {
+      draggable: true,
+      onDragStart: (e: React.DragEvent) => {
+        e.dataTransfer.effectAllowed = "move";
+        dragItemRef.current = { kind, id };
+      },
+      onDragEnd: () => {
+        dragItemRef.current = null;
+        setDropTarget(null);
+      },
+    };
+  }
+
+  function dropTargetProps(targetKind: "page" | "workspace", targetId: string) {
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        const drag = dragItemRef.current;
+        if (!drag || drag.id === targetId) return;
+        e.preventDefault();
+        const rect = e.currentTarget.getBoundingClientRect();
+        const ratio = (e.clientY - rect.top) / rect.height;
+        const intent = computeIntent(targetKind, targetId, ratio, drag.kind);
+        if (drag.kind === "workspace") {
+          const destParent =
+            intent.mode === "into"
+              ? intent.workspaceId
+              : targetKind === "workspace"
+                ? (workspaces.find((w) => w.id === targetId)?.parentId ?? null)
+                : null;
+          if (destParent === drag.id || (destParent !== null && wouldCreateCycle(drag.id, destParent))) {
+            setDropTarget(null);
+            return;
+          }
+        }
+        setDropTarget({ kind: targetKind, id: targetId, intent });
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        const drag = dragItemRef.current;
+        const dt = dropTarget;
+        dragItemRef.current = null;
+        setDropTarget(null);
+        if (!drag || !dt || dt.id !== targetId || dt.kind !== targetKind) return;
+        applyDrop(drag, dt);
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDropTarget((prev) => (prev && prev.id === targetId && prev.kind === targetKind ? null : prev));
+      },
+    };
+  }
+
+  const rootDropProps = {
+    onDragOver: (e: React.DragEvent) => {
+      if (!dragItemRef.current) return;
+      e.preventDefault();
+      setDropTarget({ kind: "root", id: "root", intent: { mode: "into", workspaceId: null } });
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      const drag = dragItemRef.current;
+      dragItemRef.current = null;
+      setDropTarget(null);
+      if (!drag) return;
+      applyDrop(drag, { kind: "root", id: "root", intent: { mode: "into", workspaceId: null } });
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+      setDropTarget((prev) => (prev && prev.kind === "root" ? null : prev));
+    },
+  };
+
+  // --- Rendering -------------------------------------------------------
+
+  function renderPageRow(p: LibraryPageRecord, depth: number) {
     const href = `/library/${p.id}`;
     const active = activeHref === href;
-    const groupIds = groupPages.map((gp) => gp.id);
+    const dt = dropTarget?.kind === "page" && dropTarget.id === p.id ? dropTarget : null;
+    const showBefore = dt?.intent.mode === "reorder" && dt.intent.position === "before";
+    const showAfter = dt?.intent.mode === "reorder" && dt.intent.position === "after";
+    const showInto = dt?.intent.mode === "into";
 
     return (
       <Link
@@ -243,34 +406,25 @@ export function Sidebar() {
           if (el) itemRefs.current.set(href, el);
         }}
         title={collapsed ? p.name : undefined}
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          pageDragIndexRef.current = index;
-        }}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          const from = pageDragIndexRef.current;
-          if (from === null || from === index) return;
-          previewReorderPages(reorderWithinGroup(pages.map((pg) => pg.id), groupIds, from, index));
-          pageDragIndexRef.current = index;
-        }}
-        onDragOver={(e) => e.preventDefault()}
-        onDragEnd={() => {
-          pageDragIndexRef.current = null;
-          commitReorderPages(pages.map((pg) => pg.id));
-        }}
+        {...dragSourceProps("page", p.id)}
+        {...dropTargetProps("page", p.id)}
         className={cn(
           "group relative flex items-center gap-3 rounded-[var(--radius-md)] py-2.5 text-sm font-medium transition-colors",
-          collapsed ? "justify-center px-2" : indent ? "pl-7 pr-3" : "px-3",
+          collapsed ? "justify-center px-2" : "pr-3",
           !active && "sidebar-link-hoverable",
-          "cursor-grab active:cursor-grabbing"
+          "cursor-grab active:cursor-grabbing",
+          showInto && "ring-2 ring-white/70 bg-white/10"
         )}
-        style={{ color: active ? "#ffffff" : "var(--sidebar-text)" }}
+        style={{
+          color: active ? "#ffffff" : "var(--sidebar-text)",
+          paddingLeft: collapsed ? undefined : 12 + depth * INDENT_PX,
+        }}
       >
+        {showBefore && <span className="drop-indicator-line" style={{ top: -3 }} />}
+        {showAfter && <span className="drop-indicator-line" style={{ bottom: -3 }} />}
         <LibraryBig
           className="size-[18px] shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
-          style={{ color: active ? "var(--accent)" : "var(--sidebar-text-muted)" }}
+          style={{ color: active ? "#ffffff" : "var(--sidebar-text-muted)" }}
         />
         {!collapsed && (
           <span className="min-w-0 flex-1 whitespace-normal break-words leading-snug" title={p.name}>
@@ -279,44 +433,6 @@ export function Sidebar() {
         )}
         {!collapsed && (
           <span className="flex shrink-0 items-center gap-0.5 self-start opacity-0 transition-opacity group-hover:opacity-100">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  aria-label={`Move ${p.name} to a workspace`}
-                  title="Move to workspace"
-                  className="rounded p-0.5 hover:bg-white/10"
-                >
-                  <FolderInput className="size-3" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" onCloseAutoFocus={(e) => e.preventDefault()}>
-                <DropdownMenuLabel>Move to workspace</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setPageWorkspace(p.id, null);
-                  }}
-                >
-                  No workspace
-                </DropdownMenuItem>
-                {workspaces.map((w) => (
-                  <DropdownMenuItem
-                    key={w.id}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setPageWorkspace(p.id, w.id);
-                    }}
-                  >
-                    {w.name}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
             <button
               onClick={(e) => {
                 e.preventDefault();
@@ -325,14 +441,14 @@ export function Sidebar() {
                 setRenameValue(p.name);
               }}
               aria-label={`Rename ${p.name}`}
-              className="rounded p-0.5 hover:bg-white/10"
+              className="rounded p-0.5 hover:bg-white/15"
             >
               <Pencil className="size-3" />
             </button>
             <button
               onClick={(e) => handleDeletePage(e, p.id)}
               aria-label={`Remove ${p.name}`}
-              className="rounded p-0.5 hover:bg-white/10"
+              className="rounded p-0.5 hover:bg-white/15"
             >
               <X className="size-3" />
             </button>
@@ -342,13 +458,121 @@ export function Sidebar() {
     );
   }
 
-  const rootPages = pages.filter((p) => !p.workspaceId);
+  function renderWorkspace(w: WorkspaceRecord, depth: number) {
+    const isCollapsed = !!collapsedWorkspaces[w.id];
+    const dt = dropTarget?.kind === "workspace" && dropTarget.id === w.id ? dropTarget : null;
+    const showBefore = dt?.intent.mode === "reorder" && dt.intent.position === "before";
+    const showAfter = dt?.intent.mode === "reorder" && dt.intent.position === "after";
+    const showInto = dt?.intent.mode === "into";
+
+    return (
+      <div key={w.id}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => toggleWorkspaceCollapsed(w.id)}
+          onKeyDown={(e) => e.key === "Enter" && toggleWorkspaceCollapsed(w.id)}
+          title={collapsed ? w.name : undefined}
+          {...dragSourceProps("workspace", w.id)}
+          {...dropTargetProps("workspace", w.id)}
+          className={cn(
+            "group relative flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] py-2 text-xs font-semibold uppercase tracking-wide transition-colors sidebar-link-hoverable",
+            collapsed ? "justify-center px-2" : "pr-3",
+            showInto && "ring-2 ring-white/70 bg-white/10"
+          )}
+          style={{
+            color: "var(--sidebar-text-muted)",
+            paddingLeft: collapsed ? undefined : 12 + depth * INDENT_PX,
+          }}
+        >
+          {showBefore && <span className="drop-indicator-line" style={{ top: -3 }} />}
+          {showAfter && <span className="drop-indicator-line" style={{ bottom: -3 }} />}
+          {!collapsed && (
+            <ChevronDown
+              className="size-3.5 shrink-0 transition-transform"
+              style={{ transform: isCollapsed ? "rotate(-90deg)" : "none" }}
+            />
+          )}
+          <Folder className="size-4 shrink-0" />
+          {!collapsed && (
+            <span className="min-w-0 flex-1 truncate normal-case tracking-normal" title={w.name}>
+              {w.name}
+            </span>
+          )}
+          {!collapsed && (
+            <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Add to ${w.name}`}
+                    title="Add library page or sub-workspace"
+                    className="rounded p-0.5 hover:bg-white/15"
+                  >
+                    <Plus className="size-3" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" onCloseAutoFocus={(e) => e.preventDefault()}>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openCreatePage(w.id);
+                    }}
+                  >
+                    <LibraryBig className="size-4" /> New library page
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openCreateWorkspace(w.id);
+                    }}
+                  >
+                    <FolderPlus className="size-4" /> New sub-workspace
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRenameWorkspaceTarget({ id: w.id, name: w.name });
+                  setRenameWorkspaceValue(w.name);
+                }}
+                aria-label={`Rename ${w.name}`}
+                className="rounded p-0.5 hover:bg-white/15"
+              >
+                <Pencil className="size-3" />
+              </button>
+              <button
+                onClick={(e) => handleDeleteWorkspace(e, w.id, w.name)}
+                aria-label={`Remove ${w.name} workspace`}
+                className="rounded p-0.5 hover:bg-white/15"
+              >
+                <X className="size-3" />
+              </button>
+            </span>
+          )}
+        </div>
+        {!isCollapsed && renderContainer(w.id, depth + 1)}
+      </div>
+    );
+  }
+
+  function renderContainer(parentId: string | null, depth: number) {
+    const childWorkspaces = workspaces.filter((w) => w.parentId === parentId);
+    const childPages = pages.filter((p) => p.workspaceId === parentId);
+    return (
+      <>
+        {childWorkspaces.map((w) => renderWorkspace(w, depth))}
+        {childPages.map((p) => renderPageRow(p, depth))}
+      </>
+    );
+  }
 
   return (
     <aside
       className={cn(
         "relative hidden h-screen flex-shrink-0 flex-col transition-[width] duration-200 ease-in-out md:flex",
-        collapsed ? "w-[76px]" : "w-64"
+        collapsed ? "w-[92px]" : "w-64"
       )}
       style={{ backgroundColor: "var(--sidebar-bg)" }}
     >
@@ -373,27 +597,20 @@ export function Sidebar() {
       <Link
         href="/"
         className={cn(
-          "flex h-16 items-center border-b transition-opacity hover:opacity-80",
-          collapsed ? "justify-center px-2" : "px-5"
+          "flex items-center justify-center border-b transition-opacity hover:opacity-90",
+          collapsed ? "h-24 px-3" : "h-28 px-4"
         )}
         style={{ borderColor: "var(--sidebar-border)" }}
       >
-        <span
-          className={cn(
-            "flex shrink-0 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] bg-white",
-            collapsed ? "h-8 w-11 p-1" : "h-9 w-full max-w-[176px] p-1.5"
-          )}
-        >
-          <Image
-            src="/brand/coverking-logo.webp"
-            alt="Coverking"
-            width={352}
-            height={96}
-            className="h-full w-full object-contain"
-            priority
-          />
-        </span>
-        {!collapsed && <span className="sr-only">Coverking Asset Library</span>}
+        <Image
+          src="/brand/coverking-logo-blue.png"
+          alt="Coverking"
+          width={1915}
+          height={525}
+          className="h-auto w-full object-contain"
+          priority
+        />
+        <span className="sr-only">Coverking Asset Library</span>
       </Link>
 
       <nav ref={navRef} className="relative flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto px-3 py-4">
@@ -423,18 +640,24 @@ export function Sidebar() {
             >
               <Icon
                 className="size-[18px] shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
-                style={{ color: active ? "var(--accent)" : "var(--sidebar-text-muted)" }}
+                style={{ color: active ? "#ffffff" : "var(--sidebar-text-muted)" }}
               />
               {!collapsed && <TextRoll className="sidebar-label-in">{item.label}</TextRoll>}
               {!collapsed && active && (
-                <span className="ml-auto size-1.5 shrink-0 rounded-full" style={{ background: "var(--accent)" }} />
+                <span className="ml-auto size-1.5 shrink-0 rounded-full bg-white" />
               )}
             </Link>
           );
         })}
 
         {!collapsed ? (
-          <div className="relative mb-1 mt-4 flex items-center justify-between px-3">
+          <div
+            className={cn(
+              "relative mb-1 mt-4 flex items-center justify-between rounded-[var(--radius-md)] px-3 py-1",
+              dropTarget?.kind === "root" && "ring-2 ring-white/70 bg-white/10"
+            )}
+            {...rootDropProps}
+          >
             <p
               className="sidebar-label-in whitespace-nowrap text-xs font-semibold uppercase tracking-widest"
               style={{ color: "var(--sidebar-text-muted)" }}
@@ -446,17 +669,17 @@ export function Sidebar() {
                 <button
                   aria-label="Add library page or workspace"
                   title="Add library page or workspace"
-                  className="rounded p-0.5 transition-colors hover:bg-white/10"
+                  className="rounded p-0.5 transition-colors hover:bg-white/15"
                   style={{ color: "var(--sidebar-text-muted)" }}
                 >
                   <Plus className="size-3.5" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setCreatePageOpen(true)}>
+                <DropdownMenuItem onClick={() => openCreatePage(null)}>
                   <LibraryBig className="size-4" /> New library page
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCreateWorkspaceOpen(true)}>
+                <DropdownMenuItem onClick={() => openCreateWorkspace(null)}>
                   <FolderPlus className="size-4" /> New workspace
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -464,7 +687,7 @@ export function Sidebar() {
           </div>
         ) : (
           <button
-            onClick={() => setCreatePageOpen(true)}
+            onClick={() => openCreatePage(null)}
             aria-label="Add library page"
             title="Add library page"
             className="sidebar-link-hoverable relative mb-1 mt-2 flex items-center justify-center rounded-[var(--radius-md)] py-2"
@@ -474,68 +697,12 @@ export function Sidebar() {
           </button>
         )}
 
-        {/* Workspaces — renamable folders that group Library Pages. Collapsing
-            one just hides its member pages here; nothing about the pages,
-            their tags, or their images changes. */}
-        {workspaces.map((w) => {
-          const memberPages = pages.filter((p) => p.workspaceId === w.id);
-          const isCollapsed = !!collapsedWorkspaces[w.id];
-          return (
-            <div key={w.id}>
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => toggleWorkspaceCollapsed(w.id)}
-                onKeyDown={(e) => e.key === "Enter" && toggleWorkspaceCollapsed(w.id)}
-                title={collapsed ? w.name : undefined}
-                className={cn(
-                  "group relative flex cursor-pointer items-center gap-2 rounded-[var(--radius-md)] py-2 text-xs font-semibold uppercase tracking-wide transition-colors sidebar-link-hoverable",
-                  collapsed ? "justify-center px-2" : "px-3"
-                )}
-                style={{ color: "var(--sidebar-text-muted)" }}
-              >
-                {!collapsed && (
-                  <ChevronDown
-                    className="size-3.5 shrink-0 transition-transform"
-                    style={{ transform: isCollapsed ? "rotate(-90deg)" : "none" }}
-                  />
-                )}
-                <Folder className="size-4 shrink-0" />
-                {!collapsed && (
-                  <span className="min-w-0 flex-1 truncate normal-case tracking-normal" title={w.name}>
-                    {w.name}
-                  </span>
-                )}
-                {!collapsed && (
-                  <span className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setRenameWorkspaceTarget({ id: w.id, name: w.name });
-                        setRenameWorkspaceValue(w.name);
-                      }}
-                      aria-label={`Rename ${w.name}`}
-                      className="rounded p-0.5 hover:bg-white/10"
-                    >
-                      <Pencil className="size-3" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteWorkspace(e, w.id, w.name)}
-                      aria-label={`Remove ${w.name} workspace`}
-                      className="rounded p-0.5 hover:bg-white/10"
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </span>
-                )}
-              </div>
-              {!isCollapsed &&
-                memberPages.map((p, index) => renderPageRow(p, memberPages, index, true))}
-            </div>
-          );
-        })}
-
-        {rootPages.map((p, index) => renderPageRow(p, rootPages, index, false))}
+        {/* Workspaces — renamable, nestable folders that group Library
+            Pages. Drag a page or workspace onto another to move it in;
+            drag between rows to reorder. Collapsing a workspace just hides
+            its contents here — nothing about the pages, tags, or images
+            changes. */}
+        {renderContainer(null, 0)}
       </nav>
 
       <div className="border-t p-3" style={{ borderColor: "var(--sidebar-border)" }}>
@@ -619,8 +786,8 @@ export function Sidebar() {
           <DialogHeader>
             <DialogTitle>New workspace</DialogTitle>
             <DialogDescription>
-              A workspace is a folder for library pages — name it, then move any page into it from that page's
-              row menu. Collapse it any time to hide its pages.
+              A workspace is a folder for library pages (and other workspaces) — name it, then drag any page or
+              workspace onto it to move it in. Collapse it any time to hide its contents.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
@@ -649,7 +816,7 @@ export function Sidebar() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename workspace</DialogTitle>
-            <DialogDescription>Rename it whenever you like — the pages inside are untouched.</DialogDescription>
+            <DialogDescription>Rename it whenever you like — its contents are untouched.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <Label htmlFor="rename-workspace-name">Workspace name</Label>

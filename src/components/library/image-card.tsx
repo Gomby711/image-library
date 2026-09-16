@@ -53,6 +53,10 @@ interface ImageCardProps {
   onDragStart?: () => void;
   onDragEnter?: () => void;
   onDragEnd?: () => void;
+  /** True while this card is the current drop target during a reorder drag
+   *  — shown with a blue edge highlight so the exact drop position is
+   *  visible, not just inferred from the live shuffle. */
+  dragOver?: boolean;
   /** Multi-select — when true a checkbox overlays the card and clicking it
    *  (anywhere on the card) toggles selection instead of opening/expanding. */
   selectMode?: boolean;
@@ -72,6 +76,7 @@ export function ImageCard({
   onDragStart,
   onDragEnter,
   onDragEnd,
+  dragOver = false,
   selectMode = false,
   selected = false,
   onToggleSelect,
@@ -179,7 +184,8 @@ export function ImageCard({
           "card-fade-in flex items-center gap-4 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]",
           reorderMode && "cursor-grab active:cursor-grabbing",
           selectMode && "cursor-pointer",
-          selected && "ring-2 ring-accent"
+          selected && "ring-2 ring-accent",
+          dragOver && "grid-drop-highlight"
         )}
       >
         {reorderMode && <GripVertical className="size-4 shrink-0 text-muted-foreground" />}
@@ -249,7 +255,8 @@ export function ImageCard({
         "card-fade-in group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-lg)]",
         reorderMode && "cursor-grab active:cursor-grabbing",
         selectMode && "cursor-pointer",
-        selected && "ring-2 ring-accent"
+        selected && "ring-2 ring-accent",
+        dragOver && "grid-drop-highlight"
       )}
     >
       {selectMode && (

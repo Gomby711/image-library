@@ -73,11 +73,13 @@ export interface LibraryPageRecord {
 }
 
 /** A renamable sidebar folder that groups Library Pages together — collapsing
- *  it hides its member pages without touching them or their tags. */
+ *  it hides its member pages without touching them or their tags. Workspaces
+ *  can nest inside one another (folders within folders) via parentId. */
 export interface WorkspaceRecord {
   id: string;
   name: string;
   createdAt: string;
+  parentId: string | null;
 }
 
 /** A custom tag the user has typed at least once, remembered so it can be

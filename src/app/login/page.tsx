@@ -7,8 +7,6 @@ import gsap from "gsap";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 gsap.registerPlugin(useGSAP);
@@ -115,37 +113,41 @@ export default function LoginPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
       </div>
 
-      <div className="flex items-center justify-center px-6 py-16">
+      {/* Right panel is solid Coverking blue — the same blue the logo art
+          is already flattened onto — so the logo reads as part of the
+          background instead of a boxed-in asset. */}
+      <div
+        className="flex items-center justify-center px-6 py-16"
+        style={{ background: "var(--accent)" }}
+      >
         <div className="login-panel w-full max-w-sm">
           <div className="mb-8 flex items-center">
-            <span className="flex h-10 w-40 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] bg-white p-2">
-              <Image
-                src="/brand/coverking-logo.webp"
-                alt="Coverking"
-                width={352}
-                height={96}
-                className="h-full w-full object-contain"
-                priority
-              />
-            </span>
+            <Image
+              src="/brand/coverking-logo-blue.png"
+              alt="Coverking"
+              width={1915}
+              height={525}
+              className="h-16 w-auto object-contain"
+              priority
+            />
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Enter the site password to open the library.
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Welcome back</h1>
+          <p className="mt-1 text-sm text-white/75">Enter the site password to open the library.</p>
 
           <form ref={shakeRef} onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
             <div className="login-field grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <label htmlFor="password" className="text-sm font-medium text-white/90">
+                Password
+              </label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
+                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/60" />
+                <input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="Enter password"
-                  className="pl-9 pe-10"
+                  className="h-10 w-full rounded-[var(--radius-md)] border border-white/30 bg-white/10 pl-9 pe-10 text-sm text-white placeholder:text-white/50 outline-none transition-colors focus-visible:border-white/70 disabled:cursor-not-allowed disabled:opacity-50"
                   value={password}
                   disabled={locked}
                   onChange={(e) => setPassword(e.target.value)}
@@ -154,7 +156,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 end-0 flex h-full w-10 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                  className="absolute inset-y-0 end-0 flex h-full w-10 items-center justify-center text-white/60 transition-colors hover:text-white"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -162,19 +164,19 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {error && (
-              <p className={cn("login-field text-sm", locked ? "text-destructive" : "text-destructive")}>
-                {error}
-              </p>
-            )}
+            {error && <p className={cn("login-field text-sm text-red-100")}>{error}</p>}
 
             {locked && (
-              <p className="login-field rounded-[var(--radius-md)] border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p className="login-field rounded-[var(--radius-md)] border border-white/30 bg-white/10 px-3 py-2 text-sm text-white">
                 Locked out — try again in {formatRemaining(lockedMs)}
               </p>
             )}
 
-            <Button type="submit" className="login-field mt-2" disabled={locked || loading || !password}>
+            <Button
+              type="submit"
+              className="login-field mt-2 bg-white text-[var(--accent)] hover:bg-white/85 active:bg-white/85"
+              disabled={locked || loading || !password}
+            >
               {loading ? "Checking…" : locked ? "Locked" : "Sign in"}
             </Button>
           </form>

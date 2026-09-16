@@ -37,6 +37,10 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   const [reorderMode, setReorderMode] = React.useState(false);
   const prePageSize = React.useRef<PageSize | null>(null);
   const dragIndexRef = React.useRef<number | null>(null);
+  // Which card is currently under the pointer during a reorder drag — shown
+  // with a blue edge highlight so the drop position is unambiguous, not just
+  // inferred from the live shuffle.
+  const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
 
   const [selectMode, setSelectMode] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -309,9 +313,11 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
   function handleDragStart(index: number) {
     dragIndexRef.current = index;
+    setDragOverIndex(index);
   }
 
   function handleDragEnter(index: number) {
+    setDragOverIndex(index);
     const from = dragIndexRef.current;
     if (from === null || from === index) return;
     const ids = items.map((img) => img.id);
@@ -323,6 +329,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
   function handleDragEnd() {
     dragIndexRef.current = null;
+    setDragOverIndex(null);
     commitReorder(items.map((img) => img.id));
   }
 
@@ -415,6 +422,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
                 onSaveName={(name) => updateImage(img.id, { originalName: name })}
                 onDelete={() => deleteImage(img.id)}
                 reorderMode={reorderMode}
+                dragOver={reorderMode && dragOverIndex === idx}
                 onDragStart={() => handleDragStart(idx)}
                 onDragEnter={() => handleDragEnter(idx)}
                 onDragEnd={handleDragEnd}
@@ -455,6 +463,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
                 onSaveName={(name) => updateImage(img.id, { originalName: name })}
                 onDelete={() => deleteImage(img.id)}
                 reorderMode={reorderMode}
+                dragOver={reorderMode && dragOverIndex === idx}
                 onDragStart={() => handleDragStart(idx)}
                 onDragEnter={() => handleDragEnter(idx)}
                 onDragEnd={handleDragEnd}
