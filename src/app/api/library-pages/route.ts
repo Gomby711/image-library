@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { mutateDb, readDb } from "@/lib/db";
+import { mutateDb, nextSiblingOrder, readDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import type { LibraryPageRecord } from "@/lib/types";
 
@@ -28,9 +28,12 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString(),
       workspaceId,
       emoji: null,
+      order: 0,
+      heroImageId: null,
     };
 
     await mutateDb((db) => {
+      page.order = nextSiblingOrder(db, workspaceId);
       db.libraryPages.push(page);
     });
 

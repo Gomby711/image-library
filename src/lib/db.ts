@@ -75,14 +75,18 @@ export async function readDb(): Promise<DbShape> {
           ...p,
           workspaceId: p.workspaceId ?? null,
           emoji: p.emoji ?? null,
+          heroImageId: p.heroImageId ?? null,
+          order: p.order,
         })),
         workspaces: (parsed.workspaces ?? []).map((w) => ({
           ...w,
           parentId: w.parentId ?? null,
           emoji: w.emoji ?? null,
+          order: w.order,
         })),
         customTags: parsed.customTags ?? [],
       };
+      backfillOrder(db);
     } catch {
       db = { ...EMPTY_DB };
     }
@@ -125,6 +129,41 @@ export function mutateDb<T>(fn: (db: DbShape) => T | Promise<T>): Promise<T> {
       throw new DbWriteError(err);
     }
   });
+}
+
+/** Library pages and workspaces used to be rendered "all workspaces, then
+ *  all pages" with ordering coming purely from each array's own position —
+ *  which meant a page could never be dragged above/below a workspace, only
+ *  reordered against other pages. Both record types now carry an explicit
+ *  `order` shared per parent container, so any sibling (page or workspace)
+ *  can be positioned anywhere relative to any other. This backfills that
+ *  field for records written before it existed, preserving the old visual
+ *  order (workspaces first, then pages, within each parent) as the
+ *  starting point. */
+function backfillOrder(db: DbShape): void {
+  const counters = new Map<string, number>();
+  const next = (parentId: string | null) => {
+    const key = parentId ?? "\0root";
+    const n = counters.get(key) ?? 0;
+    counters.set(key, n + 1);
+    return n;
+  };
+  for (const w of db.workspaces) {
+    if (typeof w.order !== "number") w.order = next(w.parentId);
+  }
+  for (const p of db.libraryPages) {
+    if (typeof p.order !== "number") p.order = next(p.workspaceId);
+  }
+}
+
+/** Order value for a brand-new sibling — one past whatever's already there
+ *  in the same container (pages and workspaces share one ordering space per
+ *  parent), so it lands at the end instead of colliding with either kind. */
+export function nextSiblingOrder(db: DbShape, parentId: string | null): number {
+  const pageOrders = db.libraryPages.filter((p) => p.workspaceId === parentId).map((p) => p.order);
+  const wsOrders = db.workspaces.filter((w) => w.parentId === parentId).map((w) => w.order);
+  const all = [...pageOrders, ...wsOrders];
+  return all.length > 0 ? Math.max(...all) + 1 : 0;
 }
 
 /** Adds any newly-seen tag names to the remembered custom-tag list (dedup,

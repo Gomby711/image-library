@@ -65,13 +65,14 @@ export function useWorkspaces() {
     return res.ok;
   }, []);
 
-  // Nests (or un-nests, with null) a workspace under another — the server
-  // refuses anything that would turn a workspace into its own descendant.
-  const moveWorkspace = React.useCallback(async (id: string, parentId: string | null) => {
+  // Repositions a workspace among its siblings (pages and workspaces share
+  // one ordering space per parent) and, if it's moving into a different
+  // parent workspace at the same time, reassigns that too.
+  const reorderWorkspace = React.useCallback(async (id: string, order: number, parentId: string | null) => {
     const res = await fetch(`/api/workspaces/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ parentId }),
+      body: JSON.stringify({ order, parentId }),
     });
     if (res.ok) {
       const updated: WorkspaceRecord = await res.json();
@@ -86,33 +87,14 @@ export function useWorkspaces() {
     return res.ok;
   }, [refresh]);
 
-  // Live drag feedback, mirrors previewReorderPages in use-library-pages.
-  const previewReorderWorkspaces = React.useCallback((newOrderIds: string[]) => {
-    setWorkspaces((prev) => {
-      const byId = new Map(prev.map((w) => [w.id, w]));
-      const reordered = newOrderIds.map((id) => byId.get(id)).filter((w): w is WorkspaceRecord => !!w);
-      return reordered.length === prev.length ? reordered : prev;
-    });
-  }, []);
-
-  const commitReorderWorkspaces = React.useCallback((newOrderIds: string[]) => {
-    fetch("/api/workspaces/reorder", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: newOrderIds }),
-    }).catch(() => {});
-  }, []);
-
   return {
     workspaces,
     loading,
     createWorkspace,
     renameWorkspace,
     setWorkspaceEmoji,
-    moveWorkspace,
+    reorderWorkspace,
     deleteWorkspace,
-    previewReorderWorkspaces,
-    commitReorderWorkspaces,
     refresh,
   };
 }

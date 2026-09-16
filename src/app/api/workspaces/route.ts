@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { mutateDb, readDb } from "@/lib/db";
+import { mutateDb, nextSiblingOrder, readDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import type { WorkspaceRecord } from "@/lib/types";
 
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString(),
       parentId,
       emoji: null,
+      order: 0,
     };
 
     await mutateDb((db) => {
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
       // input) just creates it at the top level instead of a folder that
       // can never be reached.
       if (parentId && !db.workspaces.some((w) => w.id === parentId)) workspace.parentId = null;
+      workspace.order = nextSiblingOrder(db, workspace.parentId);
       db.workspaces.push(workspace);
     });
 

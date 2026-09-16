@@ -32,6 +32,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if ("emoji" in body) {
         page.emoji = typeof body.emoji === "string" ? body.emoji : null;
       }
+      if (typeof body.order === "number" && Number.isFinite(body.order)) {
+        page.order = body.order;
+      }
+      if ("heroImageId" in body) {
+        const heroImageId = typeof body.heroImageId === "string" ? body.heroImageId : null;
+        page.heroImageId = heroImageId && db.images.some((img) => img.id === heroImageId) ? heroImageId : null;
+      }
       return page;
     });
 
