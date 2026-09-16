@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,11 +35,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="flex h-9 w-28 items-center justify-center overflow-hidden rounded-[var(--radius-sm)] p-1.5"
               style={{ background: "var(--accent)" }}
             >
-              <Image
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src="/brand/coverking-logo-white.png"
                 alt="Coverking"
-                width={1915}
-                height={525}
                 className="h-full w-full object-contain"
               />
             </span>

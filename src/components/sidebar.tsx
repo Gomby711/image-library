@@ -40,7 +40,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { useLibraryPages } from "@/hooks/use-library-pages";
 import { useWorkspaces } from "@/hooks/use-workspaces";
@@ -970,13 +969,11 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: { mobileOpen?: bo
             priority
           />
         ) : (
-          <Image
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src="/brand/coverking-logo-white.png"
             alt="Coverking"
-            width={1915}
-            height={525}
             className="h-auto w-full object-contain"
-            priority
           />
         )}
         <span className="sr-only">Coverking Asset Library</span>
