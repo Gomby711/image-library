@@ -9,14 +9,11 @@ import { Button } from "@/components/ui/button";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
 import type { ImageRecord } from "@/lib/types";
 
-/** Passing `ext` lets the file route build the R2 key (`${id}.${ext}`)
+/** Passing `ext` lets the file route build the blob filename (`${id}.${ext}`)
  *  directly and skip reading/parsing the whole library DB just to serve
- *  thumbnail bytes — the thing that was making every grid page slow and,
- *  under load, tripping Cloudflare's per-request CPU limit (error 1102).
- *  Passing `width` additionally asks for a resized copy (via Cloudflare
- *  Images) instead of the full original — grid/list cards use this, the
- *  lightbox and downloads don't, since a multi-MB original for a ~250px
- *  card was the other big chunk of "images take forever to load". */
+ *  thumbnail bytes. Passing `width` additionally asks for a resized copy
+ *  instead of the full original — grid/list cards use this, the lightbox
+ *  and downloads don't. */
 export function fileUrl(
   image: { id: string; ext: string },
   opts?: { download?: boolean; width?: number; filename?: string }

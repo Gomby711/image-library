@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { mutateDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
-import { deleteImageFile } from "@/lib/r2";
+import { deleteImageFile } from "@/lib/blob";
 import { PAGE_ICON_OPTIONS } from "@/lib/types";
 import { computeReferenceName } from "@/lib/images";
 
@@ -66,7 +66,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         page.heroImageId = valid ? heroImageId : null;
         // Reusing an existing library photo as the hero replaces whatever
         // standalone upload was there before — nothing else references
-        // that file anymore, so it'd otherwise sit orphaned in R2 forever.
+        // that file anymore, so it'd otherwise sit orphaned in Blob storage.
         if (valid && page.heroUpload) {
           orphanedHeroUpload = page.heroUpload.filename;
           page.heroUpload = null;

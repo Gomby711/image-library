@@ -1,25 +1,23 @@
-function base() {
-  return `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${process.env.KV_NAMESPACE_ID}`;
-}
+import { put, get, BlobNotFoundError } from "@vercel/blob";
 
-function authHeader() {
-  return { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` };
-}
+// KV values are stored as private blobs at kv/<key>
+// This mirrors the Cloudflare Workers KV interface without any Cloudflare dependency.
 
 export async function kvGet(key: string): Promise<string | null> {
-  const res = await fetch(`${base()}/values/${encodeURIComponent(key)}`, {
-    headers: authHeader(),
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`KV get failed: ${res.status}`);
-  return await res.text();
+  try {
+    const result = await get(`kv/${key}`, { access: "private" });
+    if (!result || result.statusCode !== 200) return null;
+    return new Response(result.stream).text();
+  } catch (err) {
+    if (err instanceof BlobNotFoundError) return null;
+    throw err;
+  }
 }
 
 export async function kvPut(key: string, value: string): Promise<void> {
-  const res = await fetch(`${base()}/values/${encodeURIComponent(key)}`, {
-    method: "PUT",
-    headers: { ...authHeader(), "Content-Type": "text/plain" },
-    body: value,
+  await put(`kv/${key}`, value, {
+    access: "private",
+    contentType: "text/plain",
+    addRandomSuffix: false,
   });
-  if (!res.ok) throw new Error(`KV put failed: ${res.status}`);
 }
