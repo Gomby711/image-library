@@ -178,6 +178,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="login-field mt-2 bg-white text-[var(--accent)] hover:bg-white/85 active:bg-white/85"
+              magnetic={false}
               disabled={locked || loading}
             >
               {loading ? "Checking…" : locked ? "Locked" : "Sign in"}

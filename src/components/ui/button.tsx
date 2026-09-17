@@ -44,16 +44,19 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  /** Set false to opt a default-variant CTA out of the magnetic hover nudge. */
+  magnetic?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, magnetic = true, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     // Magnetic hover only on primary CTAs (default variant) — applying it to
     // every ghost/outline/icon button everywhere would turn a subtle premium
     // touch into distracting wobble on toolbar clutter.
     const magneticRef = useMagneticHover<HTMLButtonElement>();
-    const composedRef = variant === "default" || variant === undefined ? mergeRefs(ref, magneticRef) : ref;
+    const useMagnetic = magnetic && (variant === "default" || variant === undefined);
+    const composedRef = useMagnetic ? mergeRefs(ref, magneticRef) : ref;
     return (
       <Comp className={cn(buttonVariants({ variant, size, className }))} ref={composedRef} {...props} />
     );
