@@ -149,6 +149,7 @@ export default function LoginPage() {
                   disabled={locked}
                   onChange={(e) => setPassword(e.target.value)}
                   autoFocus
+                  required
                 />
                 <button
                   type="button"
@@ -172,7 +173,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               className="login-field mt-2 bg-white text-[var(--accent)] hover:bg-white/85 active:bg-white/85"
-              disabled={locked || loading || !password}
+              disabled={locked || loading}
             >
               {loading ? "Checking…" : locked ? "Locked" : "Sign in"}
             </Button>
