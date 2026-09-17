@@ -3,6 +3,7 @@ import { mutateDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { computeReferenceName } from "@/lib/images";
 import { deleteImageFile } from "@/lib/blob";
+import { adjustBytes } from "@/lib/storage-tracker";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withApiErrors(async () => {
@@ -53,6 +54,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     } catch {
       // file already gone — metadata removal still succeeds
     }
+    await adjustBytes(-removed.size);
 
     return NextResponse.json({ ok: true });
   });

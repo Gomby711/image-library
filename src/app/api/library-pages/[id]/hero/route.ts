@@ -4,6 +4,7 @@ import { mutateDb, readDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { extensionFromFilename, isAcceptedExtension, mimeForExtension } from "@/lib/images";
 import { deleteImageFile, getImageFile, putImageFile } from "@/lib/blob";
+import { reserveBytes, adjustBytes } from "@/lib/storage-tracker";
 
 /** Serves whichever hero source a page has — an existing library image
  *  (heroImageId) or a standalone hero-only upload (heroUpload) — behind one
@@ -63,6 +64,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const filename = `hero-${randomUUID()}.${ext}`;
     const mimeType = mimeForExtension(ext);
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    const reservation = await reserveBytes(buffer.byteLength);
+    if (!reservation.allowed) {
+      const usedMB = (reservation.usedBytes / 1024 / 1024).toFixed(0);
+      return NextResponse.json(
+        {
+          error: `Storage is almost full (${usedMB} MB / 1024 MB used). Uploads are paused — delete some images to free up space.`,
+          storageExceeded: true,
+          usedBytes: reservation.usedBytes,
+        },
+        { status: 507 }
+      );
+    }
     await putImageFile(filename, buffer, mimeType);
 
     const updated = await mutateDb((db) => {
@@ -70,12 +84,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (!page) return null;
       const previousUpload = page.heroUpload;
       page.heroImageId = null;
-      page.heroUpload = { filename, ext, mimeType };
+      page.heroUpload = { filename, ext, mimeType, size: buffer.byteLength };
       return { page, previousUpload };
     });
 
     if (!updated) {
       await deleteImageFile(filename).catch(() => {});
+      await adjustBytes(-buffer.byteLength);
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
@@ -84,6 +99,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // behind in R2 forever.
     if (updated.previousUpload && updated.previousUpload.filename !== filename) {
       await deleteImageFile(updated.previousUpload.filename).catch(() => {});
+      await adjustBytes(-(updated.previousUpload.size ?? 0));
     }
 
     return NextResponse.json(updated.page);
@@ -108,6 +124,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (updated.previousUpload) {
       await deleteImageFile(updated.previousUpload.filename).catch(() => {});
+      await adjustBytes(-(updated.previousUpload.size ?? 0));
     }
     return NextResponse.json(updated.page);
   });

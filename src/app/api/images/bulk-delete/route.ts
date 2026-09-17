@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { mutateDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { deleteImageFile } from "@/lib/blob";
+import { adjustBytes } from "@/lib/storage-tracker";
 
 /** Deletes every image in `ids` in one DB mutation (instead of N separate
  *  read-modify-write cycles), then cleans up their R2 files. This is what
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
         })
       )
     );
+    await adjustBytes(-removed.reduce((sum, img) => sum + img.size, 0));
 
     return NextResponse.json({ deletedIds: removed.map((img) => img.id) });
   });

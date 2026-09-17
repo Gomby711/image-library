@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { mutateDb, readDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { putImageFile, deleteImageFile } from "@/lib/blob";
-import { checkAndRecord } from "@/lib/storage-tracker";
+import { reserveBytes, adjustBytes } from "@/lib/storage-tracker";
 import {
   classifyAspect,
   computeReferenceName,
@@ -90,19 +90,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
 
-    // Pre-flight storage check: sum up the raw sizes of all incoming files
-    // and reject the whole batch if it would push this month's uploads past
-    // 490 MB (10 MB below Vercel Blob's free-tier 500 MB ceiling).
+    // Pre-flight storage check: reserve the raw sizes of all incoming files
+    // against the running total and reject the whole batch if it would push
+    // usage past 950 MB (Vercel Blob's Hobby free tier is 1 GB; going over
+    // blocks ALL blob access, not just uploads, for 30 days). The reservation
+    // is reconciled below against what actually gets written.
     const totalIncoming = files.reduce((sum, f) => sum + f.size, 0);
-    const storageCheck = await checkAndRecord(totalIncoming);
-    if (!storageCheck.allowed) {
-      const usedMB = (storageCheck.usedBytes / 1024 / 1024).toFixed(1);
+    const reservation = await reserveBytes(totalIncoming);
+    if (!reservation.allowed) {
+      const usedMB = (reservation.usedBytes / 1024 / 1024).toFixed(0);
       return NextResponse.json(
         {
-          error: `Monthly storage limit reached (${usedMB} MB / 500 MB used this month). No more uploads until the month resets.`,
+          error: `Storage is almost full (${usedMB} MB / 1024 MB used). Uploads are paused — delete some images to free up space.`,
           storageExceeded: true,
-          usedBytes: storageCheck.usedBytes,
-          limitBytes: storageCheck.limitBytes,
+          usedBytes: reservation.usedBytes,
         },
         { status: 507 }
       );
@@ -152,6 +153,13 @@ export async function POST(req: Request) {
       created.push(record);
     }
 
+    // The reservation above covers every incoming file's pre-conversion
+    // size; reconcile it against what was actually written (rejected files
+    // never got uploaded, and HEIC/etc conversion can change the byte size).
+    const actualUploadedBytes = created.reduce((sum, r) => sum + r.size, 0);
+    const reservationDelta = actualUploadedBytes - totalIncoming;
+    if (reservationDelta !== 0) await adjustBytes(reservationDelta);
+
     if (created.length > 0) {
       try {
         await mutateDb((db) => {
@@ -167,8 +175,10 @@ export async function POST(req: Request) {
         });
       } catch (err) {
         // DB write failed — roll back the Blob files already uploaded so they
-        // don't sit orphaned in storage forever.
+        // don't sit orphaned in storage forever, and release their reserved
+        // bytes since none of it ends up persisted.
         await Promise.allSettled(created.map((r) => deleteImageFile(r.filename)));
+        await adjustBytes(-actualUploadedBytes);
         throw err;
       }
     }

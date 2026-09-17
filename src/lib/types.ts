@@ -113,6 +113,9 @@ export interface HeroUploadRecord {
   filename: string;
   ext: string;
   mimeType: string;
+  /** Optional for records written before this field existed — those are
+   *  treated as 0 bytes by the storage tracker rather than reconstructed. */
+  size?: number;
 }
 
 /** A user-defined sidebar tab, optionally filtered to only the images
