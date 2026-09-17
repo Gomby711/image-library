@@ -163,7 +163,7 @@ export function ImageCard({
         }
       }}
       className={cn(
-        "rounded-[var(--radius-sm)] border border-accent bg-surface-2 px-1 -mx-1 text-sm font-medium outline-none",
+        "rounded-[var(--radius-sm)] border border-accent bg-surface-2 px-1 -mx-1 text-base sm:text-sm font-medium outline-none",
         layout === "list" ? "" : "w-full"
       )}
     />

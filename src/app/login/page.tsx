@@ -149,7 +149,10 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   placeholder="Enter password"
-                  className="h-10 w-full rounded-[var(--radius-md)] border border-white/30 bg-white/10 pl-9 pe-10 text-sm text-white placeholder:text-white/50 outline-none transition-colors focus-visible:border-white/70 disabled:cursor-not-allowed disabled:opacity-50"
+                  // text-base (16px) below sm: this field autoFocuses on
+                  // load, so a sub-16px font here means iOS/Android zoom in
+                  // the instant the page opens, with no tap needed.
+                  className="h-10 w-full rounded-[var(--radius-md)] border border-white/30 bg-white/10 pl-9 pe-10 text-base sm:text-sm text-white placeholder:text-white/50 outline-none transition-colors focus-visible:border-white/70 disabled:cursor-not-allowed disabled:opacity-50"
                   value={password}
                   disabled={locked}
                   onChange={(e) => setPassword(e.target.value)}
