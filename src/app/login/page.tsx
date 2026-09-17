@@ -30,10 +30,15 @@ export default function LoginPage() {
 
   useGSAP(
     () => {
-      gsap.from(".login-panel", { opacity: 0, y: 24, duration: 0.7, ease: "power3.out" });
-      gsap.from(".login-visual", { opacity: 0, scale: 1.04, duration: 0.9, ease: "power3.out" });
+      // These entrance animations skip opacity on purpose — a delayed/staggered
+      // `.from()` can freeze mid-tween if the tab is backgrounded right after
+      // load (GSAP's ticker runs on rAF, which browsers throttle when
+      // unfocused), which would leave the login panel — password field and
+      // submit button included — stuck invisible. A stalled offset/scale just
+      // looks like a small nudge instead of losing the page.
+      gsap.from(".login-panel", { y: 24, duration: 0.7, ease: "power3.out" });
+      gsap.from(".login-visual", { scale: 1.04, duration: 0.9, ease: "power3.out" });
       gsap.from(".login-field", {
-        opacity: 0,
         y: 12,
         duration: 0.5,
         stagger: 0.08,
