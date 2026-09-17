@@ -10,8 +10,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const extParam = url.searchParams.get("ext");
   const filenameParam = url.searchParams.get("filename");
   // Grid/list thumbnails pass ?w= for a resized copy instead of the full
-  // original — never applied to downloads, and skipped entirely for
-  // formats Cloudflare Images can't transform (r2.ts falls back to null).
+  // original — never applied to downloads, and skipped for formats that
+  // Sharp can't transform (getResizedImageFile falls back to null).
   const widthParam = !asAttachment ? Number(url.searchParams.get("w")) || null : null;
 
   // Every grid thumbnail hits this route independently, so it must not read
@@ -63,12 +63,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const file = await getImageFile(filename);
   if (!file) return NextResponse.json({ error: "File missing in storage" }, { status: 404 });
 
-  // Buffered fully in r2.ts rather than streamed straight through — a raw
-  // R2 stream relayed through Next's Route Handler -> the OpenNext
-  // Cloudflare shim -> the actual edge Response could get cut short for
-  // larger files without ever raising an error, which is what "the image
-  // only loads/downloads half" was: a silently truncated byte stream that
-  // still decodes as a (partial) image instead of failing outright.
+  // Buffered fully rather than streamed straight through — avoids silently
+  // truncated responses for larger files that could decode as partial images.
   const headers = new Headers({
     "Content-Type": file.contentType ?? mimeType,
     "Content-Length": String(file.buffer.byteLength),
