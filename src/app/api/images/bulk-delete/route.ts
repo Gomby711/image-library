@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { mutateDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
-import { deleteImageFile } from "@/lib/r2";
+import { deleteImageFile } from "@/lib/blob";
 
 /** Deletes every image in `ids` in one DB mutation (instead of N separate
  *  read-modify-write cycles), then cleans up their R2 files. This is what
