@@ -1,7 +1,6 @@
 import { put, get, BlobNotFoundError } from "@vercel/blob";
 
-// KV values are stored as private blobs at kv/<key>
-// This mirrors the Cloudflare Workers KV interface without any Cloudflare dependency.
+// KV values are stored as private blobs at kv/<key>.
 
 // @vercel/blob prefers an ambient VERCEL_OIDC_TOKEN over BLOB_READ_WRITE_TOKEN
 // whenever both are present, and throws if OIDC isn't authorized for the
