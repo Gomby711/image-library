@@ -1,10 +1,10 @@
-import { put, del } from "@vercel/blob";
+import { put, del, get, BlobNotFoundError } from "@vercel/blob";
 import sharp from "sharp";
 
 // Files are stored with addRandomSuffix: false so the URL is always
 // deterministic: BLOB_STORE_BASE_URL + "/" + filename.
-// Set BLOB_STORE_BASE_URL in Vercel env vars — shown on the Blob store page,
-// format: https://<storeId>.public.blob.vercel-storage.com
+// Set BLOB_STORE_BASE_URL in Vercel env vars — for a private store the format is:
+// https://<storeId>.blob.vercel-storage.com  (no ".public." segment)
 function blobUrl(filename: string): string {
   const base = process.env.BLOB_STORE_BASE_URL;
   if (!base) throw new Error("BLOB_STORE_BASE_URL is not set");
@@ -13,7 +13,7 @@ function blobUrl(filename: string): string {
 
 export async function putImageFile(filename: string, buffer: Buffer, contentType: string): Promise<void> {
   await put(filename, buffer, {
-    access: "public",
+    access: "private",
     contentType,
     addRandomSuffix: false,
   });
@@ -21,19 +21,16 @@ export async function putImageFile(filename: string, buffer: Buffer, contentType
 
 export async function getImageFile(filename: string) {
   try {
-    const res = await fetch(blobUrl(filename));
-    if (!res.ok) {
-      if (res.status === 404) return null;
-      throw new Error(`Blob fetch failed: ${res.status}`);
-    }
-    const buffer = Buffer.from(await res.arrayBuffer());
+    const result = await get(blobUrl(filename), { access: "private" });
+    if (!result || result.statusCode !== 200) return null;
+    const buffer = Buffer.from(await new Response(result.stream).arrayBuffer());
     return {
       buffer,
-      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+      contentType: result.blob.contentType ?? "application/octet-stream",
       size: buffer.byteLength,
     };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("404")) return null;
+    if (err instanceof BlobNotFoundError) return null;
     throw err;
   }
 }

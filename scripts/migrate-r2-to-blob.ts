@@ -11,7 +11,7 @@
  */
 
 import { S3Client, GetObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
-import { put } from "@vercel/blob";
+import { put, head, BlobNotFoundError } from "@vercel/blob";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -125,17 +125,23 @@ async function kvGet(key: string): Promise<string | null> {
 // ---------------------------------------------------------------------------
 async function blobExists(filename: string): Promise<boolean> {
   const url = `${process.env.BLOB_STORE_BASE_URL}/${filename}`;
-  const res = await fetch(url, { method: "HEAD" });
-  return res.ok;
+  try {
+    await head(url, { token: process.env.BLOB_READ_WRITE_TOKEN! });
+    return true;
+  } catch (err) {
+    if (err instanceof BlobNotFoundError) return false;
+    throw err;
+  }
 }
 
-async function uploadToBlob(filename: string, buffer: Buffer, contentType: string): Promise<void> {
-  await put(filename, buffer, {
-    access: "public",
+async function uploadToBlob(filename: string, buffer: Buffer, contentType: string): Promise<string> {
+  const result = await put(filename, buffer, {
+    access: "private",
     contentType,
     addRandomSuffix: false,
     token: process.env.BLOB_READ_WRITE_TOKEN!,
   });
+  return result.url;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,7 +207,13 @@ async function main() {
         missing++;
         continue;
       }
-      await uploadToBlob(filename, file.buffer, file.contentType);
+      const uploadedUrl = await uploadToBlob(filename, file.buffer, file.contentType);
+      if (migrated === 0) {
+        // Print the actual blob URL so the user can confirm BLOB_STORE_BASE_URL
+        const baseUrl = uploadedUrl.replace(`/${filename}`, "");
+        console.log(`  → First upload URL: ${uploadedUrl}`);
+        console.log(`  → BLOB_STORE_BASE_URL should be: ${baseUrl}`);
+      }
       migrated++;
     } catch (err) {
       console.error(`    → ERROR: ${err}`);
