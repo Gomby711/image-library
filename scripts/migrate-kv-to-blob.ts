@@ -1,15 +1,11 @@
 /**
  * One-time migration: copies Cloudflare KV keys into Vercel Blob.
- * Run this BEFORE removing the Cloudflare env vars from Vercel.
- *
- * Requirements (from your existing .env.local):
- *   Cloudflare: CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, KV_NAMESPACE_ID
- *   Vercel Blob: BLOB_READ_WRITE_TOKEN
+ * Safe to re-run — reads what is already in Blob before deciding what to write.
  *
  * Run:  npm run migrate:kv-to-blob
  */
 
-import { put } from "@vercel/blob";
+import { put, get, BlobNotFoundError } from "@vercel/blob";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -29,21 +25,23 @@ function loadEnvFile(file: string) {
 loadEnvFile(path.join(process.cwd(), ".env.local"));
 loadEnvFile(path.join(process.cwd(), ".env"));
 
-const required = ["CLOUDFLARE_ACCOUNT_ID", "KV_NAMESPACE_ID", "CLOUDFLARE_API_TOKEN", "BLOB_READ_WRITE_TOKEN"];
-const missing = required.filter((k) => !process.env[k]);
-if (missing.length) {
-  console.error("Missing required env vars:", missing.join(", "));
+if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  console.error("Missing required env var: BLOB_READ_WRITE_TOKEN");
   process.exit(1);
 }
 
-async function cfKvGet(key: string): Promise<string | null> {
-  const base = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${process.env.KV_NAMESPACE_ID}`;
-  const res = await fetch(`${base}/values/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`KV get failed: ${res.status}`);
-  return res.text();
+async function blobGet(key: string): Promise<string | null> {
+  try {
+    const result = await get(`kv/${key}`, {
+      access: "private",
+      token: process.env.BLOB_READ_WRITE_TOKEN!,
+    } as Parameters<typeof get>[1]);
+    if (!result || result.statusCode !== 200) return null;
+    return new Response(result.stream).text();
+  } catch (err) {
+    if (err instanceof BlobNotFoundError) return null;
+    throw err;
+  }
 }
 
 async function blobPut(key: string, value: string): Promise<void> {
@@ -51,43 +49,64 @@ async function blobPut(key: string, value: string): Promise<void> {
     access: "private",
     contentType: "text/plain",
     addRandomSuffix: false,
+    allowOverwrite: true,
     token: process.env.BLOB_READ_WRITE_TOKEN!,
   });
 }
 
+async function cfKvGet(key: string): Promise<string | null> {
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const namespaceId = process.env.KV_NAMESPACE_ID;
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId || !namespaceId || !token) return null;
+  const base = `https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${namespaceId}`;
+  try {
+    const res = await fetch(`${base}/values/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 404 || !res.ok) return null;
+    return res.text();
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
-  // 1. Migrate the main DB
+  // 1. Check what's already in Vercel Blob
+  console.log("Checking existing kv/db in Vercel Blob...");
+  const existing = await blobGet("db");
+  if (existing) {
+    const parsed = JSON.parse(existing) as { images?: unknown[] };
+    const imageCount = parsed.images?.length ?? 0;
+    console.log(`  Found existing kv/db with ${imageCount} images.`);
+    if (imageCount > 0) {
+      console.log("  DB already has data — no migration needed.");
+      console.log("\nYour database is already in Vercel Blob. You're good to deploy.");
+      return;
+    }
+    console.log("  Existing blob has 0 images — will try to restore from Cloudflare KV.");
+  } else {
+    console.log("  No kv/db blob found yet.");
+  }
+
+  // 2. Try to read from Cloudflare KV
   console.log("Reading db from Cloudflare KV...");
-  const db = await cfKvGet("db");
-  if (db) {
-    await blobPut("db", db);
-    const parsed = JSON.parse(db) as { images?: unknown[] };
-    console.log(`  ✓ Migrated db (${parsed.images?.length ?? 0} images)`);
+  const kvDb = await cfKvGet("db");
+  if (kvDb) {
+    const parsed = JSON.parse(kvDb) as { images?: unknown[] };
+    await blobPut("db", kvDb);
+    console.log(`  ✓ Migrated db from Cloudflare KV (${parsed.images?.length ?? 0} images)`);
   } else {
-    console.log("  db key not found in KV (treating as empty DB)");
+    console.log("  db not found in Cloudflare KV (namespace may be deleted).");
+    console.log("  Writing empty DB to Vercel Blob as a safe starting point.");
     await blobPut("db", JSON.stringify({ images: [], libraryPages: [], customTags: [], workspaces: [] }));
+    console.log("\n⚠️  WARNING: No image DB was found. Your library may appear empty.");
+    console.log("   If you still have a Cloudflare KV namespace with data, check that");
+    console.log("   CLOUDFLARE_ACCOUNT_ID, KV_NAMESPACE_ID, and CLOUDFLARE_API_TOKEN");
+    console.log("   are correct in .env.local and re-run this script.");
   }
 
-  // 2. Migrate current month's storage tracker
-  const month = new Date().toISOString().slice(0, 7); // YYYY-MM
-  const trackerKey = `storage-tracker:${month}`;
-  console.log(`Reading ${trackerKey} from Cloudflare KV...`);
-  const tracker = await cfKvGet(trackerKey);
-  if (tracker) {
-    await blobPut(trackerKey, tracker);
-    console.log(`  ✓ Migrated ${trackerKey}: ${tracker} bytes`);
-  } else {
-    console.log(`  ${trackerKey} not in KV (no uploads tracked yet this month — fine to skip)`);
-  }
-
-  console.log("\nDone! The DB is now in Vercel Blob.");
-  console.log("\nNext steps:");
-  console.log("  1. Push and deploy this branch");
-  console.log("  2. Confirm the live site works");
-  console.log("  3. Remove these env vars from the Vercel dashboard:");
-  console.log("       CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, KV_NAMESPACE_ID");
-  console.log("       R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME");
-  console.log("  4. Delete the R2 bucket and KV namespace from Cloudflare dashboard");
+  console.log("\nDone.");
 }
 
 main().catch((err) => {
