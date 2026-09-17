@@ -43,11 +43,3 @@ next-env.d.ts
 # local image library data — uploaded files and the metadata/session store
 /inventory/
 /data/
-
-# OpenNext
-.open-next
-
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example

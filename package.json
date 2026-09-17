@@ -7,8 +7,7 @@
     "dev": "next dev",
     "start": "next start",
     "lint": "eslint",
-    "deploy": "vercel --prod",
-    "migrate:kv-to-blob": "npx tsx scripts/migrate-kv-to-blob.ts"
+    "deploy": "vercel --prod"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

@@ -5,7 +5,7 @@ import { deleteImageFile } from "@/lib/blob";
 import { adjustBytes } from "@/lib/storage-tracker";
 
 /** Deletes every image in `ids` in one DB mutation (instead of N separate
- *  read-modify-write cycles), then cleans up their R2 files. This is what
+ *  read-modify-write cycles), then cleans up their Blob files. This is what
  *  backs multi-select "delete selection". */
 export async function POST(req: Request) {
   return withApiErrors(async () => {

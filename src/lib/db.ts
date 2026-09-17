@@ -166,7 +166,7 @@ function backfillOrder(db: DbShape): void {
  *  real library image (so it showed up in the grid, which nobody wanted —
  *  the hero is meant to be decoration, not an asset). Any page whose hero
  *  is still pointing at a db.images entry gets migrated to the standalone
- *  heroUpload storage instead — the underlying R2 file is kept (so the hero
+ *  heroUpload storage instead — the underlying Blob file is kept (so the hero
  *  keeps working, unchanged), only the library-listing entry is removed. */
 function pullHeroImagesOutOfLibrary(db: DbShape): void {
   for (const page of db.libraryPages) {

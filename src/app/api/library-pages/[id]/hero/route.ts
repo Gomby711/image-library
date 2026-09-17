@@ -96,7 +96,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Clean up whatever hero file this page had before, now that nothing
     // references it — otherwise every hero change leaves an orphaned file
-    // behind in R2 forever.
+    // behind in Blob storage forever.
     if (updated.previousUpload && updated.previousUpload.filename !== filename) {
       await deleteImageFile(updated.previousUpload.filename).catch(() => {});
       await adjustBytes(-(updated.previousUpload.size ?? 0));
