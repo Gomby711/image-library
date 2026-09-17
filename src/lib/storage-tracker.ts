@@ -37,6 +37,12 @@ export async function checkAndRecord(
   return { allowed: true, usedBytes: updated.bytes, limitBytes: STORAGE_LIMIT_BYTES };
 }
 
+export async function deductBytes(bytes: number): Promise<void> {
+  const current = await getUsage();
+  const updated: MonthlyUsage = { bytes: Math.max(0, current - bytes) };
+  await kvPut(monthKey(), JSON.stringify(updated));
+}
+
 export async function getStorageStats(): Promise<{
   usedBytes: number;
   limitBytes: number;

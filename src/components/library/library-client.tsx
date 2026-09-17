@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ImageOff, Tag, Tags, Trash2, X } from "lucide-react";
 import { useImages } from "@/hooks/use-images";
 import { UploadDropzone } from "@/components/library/upload-dropzone";
+import { StorageBar } from "@/components/library/storage-bar";
 import { Toolbar } from "@/components/library/toolbar";
 import { Pagination } from "@/components/library/pagination";
 import { HERO_DRAG_MIME, ImageCard, fileUrl, THUMB_WIDTH } from "@/components/library/image-card";
@@ -365,10 +366,13 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   return (
     <div className="flex flex-col gap-6">
       {!hideUpload && !reorderMode && !selectMode && (
-        <UploadDropzone
-          onFiles={(files) => upload(files, { tags: lockedTag ? [lockedTag] : undefined })}
-          uploads={uploads}
-        />
+        <div className="flex flex-col gap-3">
+          <StorageBar />
+          <UploadDropzone
+            onFiles={(files) => upload(files, { tags: lockedTag ? [lockedTag] : undefined })}
+            uploads={uploads}
+          />
+        </div>
       )}
 
       <Toolbar

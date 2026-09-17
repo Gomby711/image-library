@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { mutateDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { computeReferenceName } from "@/lib/images";
-import { deleteImageFile } from "@/lib/blob";
+import { deleteImageFile, deleteImageThumbs } from "@/lib/blob";
+import { deductBytes } from "@/lib/storage-tracker";
+
+const THUMB_WIDTHS = [480];
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withApiErrors(async () => {
@@ -48,11 +51,11 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
 
     if (!removed) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    try {
-      await deleteImageFile(removed.filename);
-    } catch {
-      // file already gone — metadata removal still succeeds
-    }
+    await Promise.allSettled([
+      deleteImageFile(removed.filename),
+      deleteImageThumbs(removed.id, THUMB_WIDTHS),
+      deductBytes(removed.size),
+    ]);
 
     return NextResponse.json({ ok: true });
   });

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { mutateDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
-import { deleteImageFile } from "@/lib/blob";
+import { deleteImageFile, deleteImageThumbs } from "@/lib/blob";
+import { deductBytes } from "@/lib/storage-tracker";
+
+const THUMB_WIDTHS = [480];
 
 /** Deletes every image in `ids` in one DB mutation (instead of N separate
  *  read-modify-write cycles), then cleans up their R2 files. This is what
@@ -25,13 +28,12 @@ export async function POST(req: Request) {
       return removed;
     });
 
-    await Promise.all(
-      removed.map((img) =>
-        deleteImageFile(img.filename).catch(() => {
-          // file already gone — metadata removal still succeeds
-        })
-      )
-    );
+    const totalBytes = removed.reduce((sum, img) => sum + img.size, 0);
+    await Promise.allSettled([
+      ...removed.map((img) => deleteImageFile(img.filename)),
+      ...removed.map((img) => deleteImageThumbs(img.id, THUMB_WIDTHS)),
+      deductBytes(totalBytes),
+    ]);
 
     return NextResponse.json({ deletedIds: removed.map((img) => img.id) });
   });

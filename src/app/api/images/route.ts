@@ -1,5 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+
+export const maxDuration = 60;
 import { mutateDb, readDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { putImageFile, deleteImageFile } from "@/lib/blob";
@@ -111,45 +113,61 @@ export async function POST(req: Request) {
     const created: ImageRecord[] = [];
     const rejected: { name: string; reason: string }[] = [];
 
-    for (const file of files) {
-      const origExt = extensionFromFilename(file.name);
-      let finalExt = origExt;
-      let buffer = Buffer.from(await file.arrayBuffer()) as Buffer;
+    type FileResult =
+      | { kind: "ok"; record: ImageRecord }
+      | { kind: "rejected"; name: string; reason: string };
 
-      if (isConvertibleExtension(origExt)) {
-        try {
-          buffer = await convertToJpeg(buffer, origExt);
-          finalExt = "jpg";
-        } catch {
-          rejected.push({ name: file.name, reason: `Could not convert .${origExt} file` });
-          continue;
+    const results = await Promise.allSettled(
+      files.map(async (file): Promise<FileResult> => {
+        const origExt = extensionFromFilename(file.name);
+        let finalExt = origExt;
+        let buffer = Buffer.from(await file.arrayBuffer()) as Buffer;
+
+        if (isConvertibleExtension(origExt)) {
+          try {
+            buffer = await convertToJpeg(buffer, origExt);
+            finalExt = "jpg";
+          } catch {
+            return { kind: "rejected", name: file.name, reason: `Could not convert .${origExt} file` };
+          }
+        } else if (!isAcceptedExtension(origExt)) {
+          return { kind: "rejected", name: file.name, reason: `Unsupported file type ".${origExt}"` };
         }
-      } else if (!isAcceptedExtension(origExt)) {
-        rejected.push({ name: file.name, reason: `Unsupported file type ".${origExt}"` });
-        continue;
+
+        const id = randomUUID();
+        const filename = `${id}.${finalExt}`;
+        await putImageFile(filename, buffer, mimeForExtension(finalExt));
+
+        const { width, height } = readDimensions(buffer, finalExt);
+
+        return {
+          kind: "ok",
+          record: {
+            id,
+            filename,
+            originalName: file.name,
+            ext: finalExt,
+            mimeType: mimeForExtension(finalExt),
+            size: buffer.byteLength,
+            width,
+            height,
+            aspect: classifyAspect(width, height),
+            tags,
+            folderId,
+            uploadedAt: new Date().toISOString(),
+          },
+        };
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === "rejected") {
+        rejected.push({ name: "unknown", reason: String(result.reason) });
+      } else if (result.value.kind === "rejected") {
+        rejected.push({ name: result.value.name, reason: result.value.reason });
+      } else {
+        created.push(result.value.record);
       }
-
-      const id = randomUUID();
-      const filename = `${id}.${finalExt}`;
-      await putImageFile(filename, buffer, mimeForExtension(finalExt));
-
-      const { width, height } = readDimensions(buffer, finalExt);
-
-      const record: ImageRecord = {
-        id,
-        filename,
-        originalName: file.name,
-        ext: finalExt,
-        mimeType: mimeForExtension(finalExt),
-        size: buffer.byteLength,
-        width,
-        height,
-        aspect: classifyAspect(width, height),
-        tags,
-        folderId,
-        uploadedAt: new Date().toISOString(),
-      };
-      created.push(record);
     }
 
     if (created.length > 0) {
