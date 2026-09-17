@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Tag, Tags, Trash2, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ImageOff, Tag, Tags, Trash2, X } from "lucide-react";
 import { useImages } from "@/hooks/use-images";
 import { UploadDropzone } from "@/components/library/upload-dropzone";
 import { Toolbar } from "@/components/library/toolbar";
@@ -389,17 +390,32 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
         onSelectAll={handleSelectAllToggle}
       />
 
-      {reorderMode && (
-        <p className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
-          Drag any card to set a custom order. Changes save automatically — click "Done" when finished.
-        </p>
-      )}
-
-      {selectMode && (
-        <p className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
-          Click a card to select it, click-and-drag across the grid to select several at once, or use "Select all".
-        </p>
-      )}
+      <AnimatePresence>
+        {reorderMode && (
+          <motion.p
+            key="reorder-banner"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground"
+          >
+            Drag any card to set a custom order. Changes save automatically — click "Done" when finished.
+          </motion.p>
+        )}
+        {selectMode && (
+          <motion.p
+            key="select-banner"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground"
+          >
+            Click a card to select it, click-and-drag across the grid to select several at once, or use "Select all".
+          </motion.p>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -408,9 +424,14 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-[var(--radius-lg)] border border-dashed border-border py-16 text-center text-muted-foreground">
-          <Loader2 className="size-5 opacity-0" />
-          <p className="text-sm">No images match yet. Upload something, or clear your search.</p>
+        <div className="empty-state-in flex flex-col items-center gap-4 rounded-[var(--radius-lg)] border border-dashed border-border py-20 text-center text-muted-foreground">
+          <div className="rounded-full border border-border bg-surface p-4">
+            <ImageOff className="size-8 opacity-40" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-foreground">No images found</p>
+            <p className="text-xs opacity-60">Upload some images, or clear your search filters.</p>
+          </div>
         </div>
       ) : view === "carousel" ? (
         <CoverflowCarousel slides={slides} onSelect={(_, idx) => setLightboxIndex(idx)} />
@@ -512,25 +533,45 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
         <Pagination page={page} pageSize={effectivePageSize} total={total} onPageChange={setPage} />
       )}
 
-      {selectMode && selectedIds.size > 0 && (
-        <div className="fixed inset-x-2 bottom-6 z-40 flex justify-center sm:inset-x-0">
-          <div className="flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-border bg-surface-2 px-3 py-2.5 shadow-[var(--shadow-lg)] sm:gap-3 sm:px-4">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <Button size="sm" onClick={() => setBulkTagOpen(true)}>
-              <Tag className="size-4" /> Add tag
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setBulkRemoveOpen(true)}>
-              <Tags className="size-4" /> Remove tag
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={bulkDeleting}>
-              <Trash2 className="size-4" /> {bulkDeleting ? "Deleting…" : "Delete"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-              <X className="size-4" /> Clear
-            </Button>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {selectMode && selectedIds.size > 0 && (
+          <motion.div
+            key="bulk-bar"
+            initial={{ y: 72, opacity: 0, scale: 0.92 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 72, opacity: 0, scale: 0.92 }}
+            transition={{ type: "spring", damping: 22, stiffness: 280 }}
+            className="fixed inset-x-2 bottom-6 z-40 flex justify-center sm:inset-x-0"
+          >
+            <div className="flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-border bg-surface-2 px-3 py-2.5 shadow-[var(--shadow-lg)] sm:gap-3 sm:px-4">
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={selectedIds.size}
+                  initial={{ y: -8, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: 8, opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-sm font-medium"
+                >
+                  {selectedIds.size} selected
+                </motion.span>
+              </AnimatePresence>
+              <Button size="sm" onClick={() => setBulkTagOpen(true)}>
+                <Tag className="size-4" /> Add tag
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setBulkRemoveOpen(true)}>
+                <Tags className="size-4" /> Remove tag
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={bulkDeleting}>
+                <Trash2 className="size-4" /> {bulkDeleting ? "Deleting…" : "Delete"}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                <X className="size-4" /> Clear
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {lightboxIndex !== null && (
         <Lightbox

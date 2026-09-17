@@ -12,6 +12,8 @@ export function readDimensions(buffer: Buffer, ext: string): { width: number; he
         return readPng(buffer);
       case "jpg":
       case "jpeg":
+      case "jpe":
+      case "jfif":
         return readJpeg(buffer);
       case "gif":
         return readGif(buffer);
@@ -21,6 +23,8 @@ export function readDimensions(buffer: Buffer, ext: string): { width: number; he
         return readAvif(buffer);
       case "svg":
         return readSvg(buffer.toString("utf-8"));
+      case "bmp":
+        return readBmp(buffer);
       default:
         return { width: 0, height: 0 };
     }
@@ -120,6 +124,11 @@ function readAvif(buf: Buffer) {
   const ispe = findBox(ipco.start, ipco.end, "ispe");
   if (!ispe) return { width: 0, height: 0 };
   return { width: buf.readUInt32BE(ispe.start + 4), height: buf.readUInt32BE(ispe.start + 8) };
+}
+
+function readBmp(buf: Buffer) {
+  if (buf.length < 26 || buf[0] !== 0x42 || buf[1] !== 0x4d) return { width: 0, height: 0 };
+  return { width: buf.readInt32LE(18), height: Math.abs(buf.readInt32LE(22)) };
 }
 
 function readSvg(text: string) {

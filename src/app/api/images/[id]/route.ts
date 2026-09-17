@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { mutateDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { computeReferenceName } from "@/lib/images";
-import { deleteImageFile } from "@/lib/r2";
+import { deleteImageFile } from "@/lib/blob";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withApiErrors(async () => {

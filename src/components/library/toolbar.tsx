@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "framer-motion";
 import { CheckSquare, Grid3x3, LayoutList, ListChecks, Move, Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -162,17 +163,29 @@ function ViewButton({
   children: React.ReactNode;
 }) {
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label={label}
-      aria-pressed={active}
-      title={label}
-      onClick={onClick}
-      disabled={disabled}
-      className={cn("h-8 w-8", active && "bg-accent text-accent-foreground hover:bg-[var(--accent-hover)]")}
-    >
-      {children}
-    </Button>
+    <div className="relative">
+      {active && (
+        <motion.div
+          layoutId="view-mode-indicator"
+          className="absolute inset-0 rounded-[6px] bg-accent"
+          transition={{ type: "spring", damping: 22, stiffness: 300 }}
+        />
+      )}
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={label}
+        aria-pressed={active}
+        title={label}
+        onClick={onClick}
+        disabled={disabled}
+        className={cn(
+          "relative z-10 h-8 w-8",
+          active ? "text-accent-foreground hover:text-accent-foreground" : ""
+        )}
+      >
+        {children}
+      </Button>
+    </div>
   );
 }

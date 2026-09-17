@@ -2,7 +2,8 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { mutateDb, readDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
-import { putImageFile, deleteImageFile } from "@/lib/r2";
+import { putImageFile, deleteImageFile } from "@/lib/blob";
+import { checkAndRecord } from "@/lib/storage-tracker";
 import {
   classifyAspect,
   computeReferenceName,
@@ -89,6 +90,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No files provided" }, { status: 400 });
     }
 
+    // Pre-flight storage check: sum up the raw sizes of all incoming files
+    // and reject the whole batch if it would push this month's uploads past
+    // 490 MB (10 MB below Vercel Blob's free-tier 500 MB ceiling).
+    const totalIncoming = files.reduce((sum, f) => sum + f.size, 0);
+    const storageCheck = await checkAndRecord(totalIncoming);
+    if (!storageCheck.allowed) {
+      const usedMB = (storageCheck.usedBytes / 1024 / 1024).toFixed(1);
+      return NextResponse.json(
+        {
+          error: `Monthly storage limit reached (${usedMB} MB / 500 MB used this month). No more uploads until the month resets.`,
+          storageExceeded: true,
+          usedBytes: storageCheck.usedBytes,
+          limitBytes: storageCheck.limitBytes,
+        },
+        { status: 507 }
+      );
+    }
+
     const created: ImageRecord[] = [];
     const rejected: { name: string; reason: string }[] = [];
 
@@ -147,7 +166,7 @@ export async function POST(req: Request) {
           rememberTags(db, tags);
         });
       } catch (err) {
-        // DB write failed — roll back the R2 files already uploaded so they
+        // DB write failed — roll back the Blob files already uploaded so they
         // don't sit orphaned in storage forever.
         await Promise.allSettled(created.map((r) => deleteImageFile(r.filename)));
         throw err;

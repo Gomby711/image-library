@@ -291,3 +291,47 @@ body {
   outline-offset: -3px;
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5) inset;
 }
+
+/* Reorder / select mode hint banners — slide down from just above. */
+@keyframes bannerSlideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.banner-slide-in {
+  animation: bannerSlideIn 0.3s var(--ease-out-expo) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .banner-slide-in { animation: none; }
+}
+
+/* Empty-state panel fades up after a short delay — appears only once it's
+   clear no data is loading. */
+@keyframes emptyStateIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.empty-state-in {
+  animation: emptyStateIn 0.45s var(--ease-out-expo) 0.1s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-state-in { animation: none; }
+}
+
+/* Hero cursor-spotlight — outer wrapper sets --spot-x / --spot-y via JS;
+   the inner spotlight div reads them. Opacity transitions in/out via class. */
+.hero-spotlight-glow {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    circle 480px at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(17, 127, 209, 0.22),
+    transparent 70%
+  );
+}
+.hero-spotlight-active .hero-spotlight-glow {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-spotlight-glow { transition: none; }
+}

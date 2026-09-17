@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { mutateDb, readDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { extensionFromFilename, isAcceptedExtension, mimeForExtension } from "@/lib/images";
-import { deleteImageFile, getImageFile, putImageFile } from "@/lib/r2";
+import { deleteImageFile, getImageFile, putImageFile } from "@/lib/blob";
 
 /** Serves whichever hero source a page has — an existing library image
  *  (heroImageId) or a standalone hero-only upload (heroUpload) — behind one
