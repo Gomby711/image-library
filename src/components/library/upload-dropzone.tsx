@@ -90,41 +90,65 @@ export function UploadDropzone({ onFiles, uploads }: UploadDropzoneProps) {
   );
 }
 
+const RING_R = 14;
+const RING_C = 2 * Math.PI * RING_R;
+
 function UploadRow({ item }: { item: UploadProgressItem }) {
-  const barRef = React.useRef<HTMLDivElement>(null);
+  const progressRef = React.useRef<SVGCircleElement>(null);
 
   useGSAP(
     () => {
-      gsap.to(barRef.current, { width: `${item.progress}%`, duration: 0.35, ease: "power2.out" });
+      if (!progressRef.current) return;
+      const offset = RING_C * (1 - item.progress / 100);
+      gsap.to(progressRef.current, { strokeDashoffset: offset, duration: 0.35, ease: "power2.out" });
     },
-    { dependencies: [item.progress], scope: barRef }
+    { dependencies: [item.progress] }
   );
+
+  const isDone = item.status === "done";
+  const isError = item.status === "error";
 
   return (
     <div className="flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-surface px-3 py-2 text-sm">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate">{item.name}</span>
-          {item.status === "done" ? (
-            <Check className="size-4 shrink-0 text-accent" />
-          ) : item.status === "error" ? (
-            <AlertCircle className="size-4 shrink-0 text-destructive" />
+      {/* SVG progress ring */}
+      <div className="relative shrink-0">
+        <svg width="36" height="36" viewBox="0 0 36 36" className="-rotate-90">
+          <circle
+            cx="18" cy="18" r={RING_R}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3"
+            className="text-surface-2"
+          />
+          <circle
+            ref={progressRef}
+            cx="18" cy="18" r={RING_R}
+            fill="none"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeDasharray={RING_C}
+            strokeDashoffset={RING_C}
+            className={cn(
+              "transition-none",
+              isError ? "text-destructive stroke-destructive" : "stroke-accent"
+            )}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          {isDone ? (
+            <Check className="size-3.5 text-accent" />
+          ) : isError ? (
+            <AlertCircle className="size-3 text-destructive" />
           ) : (
-            <span className="shrink-0 text-xs text-muted-foreground">{item.progress}%</span>
+            <span className="text-[9px] font-semibold text-muted-foreground leading-none">{item.progress}</span>
           )}
         </div>
-        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-          <div
-            ref={barRef}
-            className={cn(
-              "h-full rounded-full",
-              item.status === "error" ? "bg-destructive" : "bg-accent"
-            )}
-            style={{ width: 0 }}
-          />
-        </div>
-        {item.status === "error" && item.error && (
-          <p className="mt-1 text-xs text-destructive">{item.error}</p>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <span className="truncate block text-sm">{item.name}</span>
+        {isError && item.error && (
+          <p className="mt-0.5 text-xs text-destructive">{item.error}</p>
         )}
       </div>
     </div>

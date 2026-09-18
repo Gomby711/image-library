@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { NextResponse } from "next/server";
 
 export const maxDuration = 60;
@@ -16,7 +16,7 @@ import {
 } from "@/lib/images";
 import { readDimensions } from "@/lib/image-dimensions";
 import { convertToJpeg } from "@/lib/image-convert";
-import type { ImageRecord, SortKey } from "@/lib/types";
+import type { ActivityRecord, ExifData, ImageRecord, SortKey } from "@/lib/types";
 
 export async function GET(req: Request) {
   return withApiErrors(async () => {
@@ -134,6 +134,39 @@ export async function POST(req: Request) {
           return { kind: "rejected", name: file.name, reason: `Unsupported file type ".${origExt}"` };
         }
 
+        const hash = createHash("sha256").update(buffer).digest("hex");
+
+        // Extract dominant color (Sharp stats) — non-fatal if it fails
+        let dominantColor: string | undefined;
+        try {
+          const sharp = (await import("sharp")).default;
+          const { dominant } = await sharp(buffer).stats();
+          dominantColor = `#${dominant.r.toString(16).padStart(2, "0")}${dominant.g.toString(16).padStart(2, "0")}${dominant.b.toString(16).padStart(2, "0")}`;
+        } catch { /* not critical */ }
+
+        // Extract EXIF metadata — JPEG/TIFF only, non-fatal if it fails
+        let exif: ExifData | undefined;
+        if (finalExt === "jpg" || finalExt === "jpeg" || finalExt === "tiff" || finalExt === "tif") {
+          try {
+            const ExifReader = (await import("exifreader")).default;
+            const tags = ExifReader.load(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+            const makeStr = tags["Make"]?.description ?? "";
+            const modelStr = tags["Model"]?.description ?? "";
+            const camera = [makeStr, modelStr].filter(Boolean).join(" ").trim() || undefined;
+            exif = {
+              camera,
+              lens: (tags["LensModel"]?.description ?? tags["Lens"]?.description) || undefined,
+              focalLength: tags["FocalLength"]?.description || undefined,
+              aperture: tags["FNumber"]?.description || undefined,
+              shutterSpeed: tags["ExposureTime"]?.description || undefined,
+              iso: (tags["ISOSpeedRatings"]?.description ?? tags["PhotographicSensitivity"]?.description) || undefined,
+              capturedAt: tags["DateTimeOriginal"]?.description || undefined,
+            };
+            // Drop entirely if nothing meaningful was found
+            if (!Object.values(exif).some(Boolean)) exif = undefined;
+          } catch { /* not critical */ }
+        }
+
         const id = randomUUID();
         const filename = `${id}.${finalExt}`;
         await putImageFile(filename, buffer, mimeForExtension(finalExt));
@@ -155,6 +188,9 @@ export async function POST(req: Request) {
             tags,
             folderId,
             uploadedAt: new Date().toISOString(),
+            dominantColor,
+            exif,
+            hash,
           },
         };
       })
@@ -171,23 +207,55 @@ export async function POST(req: Request) {
     }
 
     if (created.length > 0) {
+      const duplicates: { name: string; reason: string }[] = [];
       try {
         await mutateDb((db) => {
-          // Assigned one at a time (not against a snapshot) so two reference
-          // images uploaded in the same batch number sequentially instead of
-          // both claiming "_1".
+          const existingHashes = new Set(db.images.map((img) => img.hash).filter(Boolean));
+          const finalCreated: ImageRecord[] = [];
+
           for (const record of created) {
+            // Duplicate detection: if another image already has the same hash, warn and skip
+            if (record.hash && existingHashes.has(record.hash)) {
+              duplicates.push({ name: record.originalName, reason: "Duplicate file — identical image already in your library" });
+              continue;
+            }
+            if (record.hash) existingHashes.add(record.hash);
+
             const refName = computeReferenceName(record.tags, record.ext, db.images, record.id);
             if (refName) record.originalName = refName;
             db.images.unshift(record);
+            finalCreated.push(record);
           }
+
           rememberTags(db, tags);
+
+          if (finalCreated.length > 0) {
+            const entry: ActivityRecord = {
+              id: randomUUID(),
+              kind: "upload",
+              description:
+                finalCreated.length === 1
+                  ? `Uploaded ${finalCreated[0].originalName}`
+                  : `Uploaded ${finalCreated.length} images`,
+              imageIds: finalCreated.map((r) => r.id),
+              createdAt: new Date().toISOString(),
+            };
+            db.activityLog.unshift(entry);
+            if (db.activityLog.length > 200) db.activityLog.length = 200;
+          }
         });
       } catch (err) {
         // DB write failed — roll back the Blob files already uploaded so they
         // don't sit orphaned in storage forever.
         await Promise.allSettled(created.map((r) => deleteImageFile(r.filename)));
         throw err;
+      }
+      // Clean up blob files for duplicate-rejected records
+      if (duplicates.length > 0) {
+        const dupNames = new Set(duplicates.map((d) => d.name));
+        const dupRecords = created.filter((r) => dupNames.has(r.originalName));
+        await Promise.allSettled(dupRecords.map((r) => deleteImageFile(r.filename)));
+        rejected.push(...duplicates);
       }
     }
 

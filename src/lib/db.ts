@@ -8,7 +8,7 @@ function sanitizeIcon(value: unknown): PageIconName | null {
 }
 
 const DB_KEY = "db";
-const EMPTY_DB: DbShape = { images: [], folders: [], libraryPages: [], workspaces: [], customTags: [] };
+const EMPTY_DB: DbShape = { images: [], folders: [], libraryPages: [], workspaces: [], customTags: [], activityLog: [] };
 
 function cloneDb(db: DbShape): DbShape {
   return {
@@ -17,6 +17,7 @@ function cloneDb(db: DbShape): DbShape {
     libraryPages: db.libraryPages.slice(),
     workspaces: db.workspaces.slice(),
     customTags: db.customTags.slice(),
+    activityLog: db.activityLog.slice(),
   };
 }
 
@@ -91,6 +92,7 @@ export async function readDb(): Promise<DbShape> {
           order: w.order,
         })),
         customTags: parsed.customTags ?? [],
+        activityLog: parsed.activityLog ?? [],
       };
       backfillOrder(db);
       pullHeroImagesOutOfLibrary(db);

@@ -1,8 +1,10 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { mutateDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { deleteImageFile, deleteImageThumbs } from "@/lib/blob";
 import { deductBytes } from "@/lib/storage-tracker";
+import type { ActivityRecord } from "@/lib/types";
 
 const THUMB_WIDTHS = [480];
 
@@ -25,6 +27,17 @@ export async function POST(req: Request) {
         removed.push(img);
         return false;
       });
+      if (removed.length > 0) {
+        const entry: ActivityRecord = {
+          id: randomUUID(),
+          kind: "bulk_delete",
+          description: `Deleted ${removed.length} image${removed.length === 1 ? "" : "s"}`,
+          imageIds: removed.map((img) => img.id),
+          createdAt: new Date().toISOString(),
+        };
+        db.activityLog.unshift(entry);
+        if (db.activityLog.length > 200) db.activityLog.length = 200;
+      }
       return removed;
     });
 

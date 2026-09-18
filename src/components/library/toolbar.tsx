@@ -2,7 +2,18 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { CheckSquare, Grid3x3, LayoutList, ListChecks, Move, Search, Sparkles } from "lucide-react";
+import {
+  Activity,
+  CheckSquare,
+  Download,
+  Grid3x3,
+  LayoutList,
+  ListChecks,
+  Move,
+  Rows3,
+  Search,
+  Sparkles,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +44,23 @@ interface ToolbarProps {
   visibleCount?: number;
   allVisibleSelected?: boolean;
   onSelectAll?: () => void;
+  selectedCount?: number;
+  onBulkDownload?: () => void;
+  showActivityLog?: boolean;
+  onToggleActivityLog?: () => void;
+  accentColor?: string;
+  onAccentColorChange?: (color: string) => void;
 }
+
+const PRESET_ACCENTS = [
+  "#117fd1",
+  "#7c3aed",
+  "#db2777",
+  "#ea580c",
+  "#16a34a",
+  "#0891b2",
+  "#b45309",
+];
 
 export function Toolbar({
   search,
@@ -52,9 +79,17 @@ export function Toolbar({
   visibleCount = 0,
   allVisibleSelected = false,
   onSelectAll,
+  selectedCount = 0,
+  onBulkDownload,
+  showActivityLog = false,
+  onToggleActivityLog,
+  accentColor,
+  onAccentColorChange,
 }: ToolbarProps) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-[var(--radius-lg)] border border-border/50 bg-surface/80 px-4 py-3 backdrop-blur-md shadow-[var(--shadow-sm)]"
+    >
       <div className="relative w-full sm:max-w-xs">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -101,6 +136,9 @@ export function Toolbar({
           <ViewButton active={view === "grid"} label="Grid view" onClick={() => onViewChange("grid")} disabled={reorderMode || selectMode}>
             <Grid3x3 className="size-4" />
           </ViewButton>
+          <ViewButton active={view === "masonry"} label="Masonry view" onClick={() => onViewChange("masonry")} disabled={reorderMode || selectMode}>
+            <Rows3 className="size-4" />
+          </ViewButton>
           <ViewButton active={view === "list"} label="List view" onClick={() => onViewChange("list")} disabled={reorderMode || selectMode}>
             <LayoutList className="size-4" />
           </ViewButton>
@@ -144,7 +182,71 @@ export function Toolbar({
             {allVisibleSelected ? "Deselect all" : "Select all"}
           </Button>
         )}
+
+        {selectMode && selectedCount > 0 && onBulkDownload && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onBulkDownload}
+            title={`Download ${selectedCount} selected image${selectedCount === 1 ? "" : "s"} as ZIP`}
+          >
+            <Download className="size-4" />
+            ZIP ({selectedCount})
+          </Button>
+        )}
+
+        {onToggleActivityLog && (
+          <Button
+            variant={showActivityLog ? "default" : "outline"}
+            size="icon"
+            className="size-8 shrink-0"
+            onClick={onToggleActivityLog}
+            title="Activity log"
+          >
+            <Activity className="size-4" />
+          </Button>
+        )}
+
+        {accentColor !== undefined && onAccentColorChange && (
+          <AccentPicker value={accentColor} onChange={onAccentColorChange} />
+        )}
       </div>
+    </div>
+  );
+}
+
+function AccentPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="size-6 rounded-full border-2 border-border ring-offset-background transition-all hover:scale-110 hover:ring-2 hover:ring-offset-2"
+        style={{ backgroundColor: value }}
+        title="Accent color"
+        aria-label="Accent color"
+      />
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-2 flex gap-1.5 rounded-[var(--radius-md)] border border-border bg-surface p-2 shadow-[var(--shadow-md)]">
+          {PRESET_ACCENTS.map((color) => (
+            <button
+              key={color}
+              type="button"
+              onClick={() => {
+                onChange(color);
+                setOpen(false);
+              }}
+              className={cn(
+                "size-6 rounded-full border-2 transition-all hover:scale-110",
+                value === color ? "border-foreground scale-110" : "border-transparent"
+              )}
+              style={{ backgroundColor: color }}
+              aria-label={color}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
