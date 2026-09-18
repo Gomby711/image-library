@@ -7,6 +7,7 @@ import { LogOut, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ToastProvider } from "@/hooks/use-toast";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -21,6 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <ToastProvider>
     <div className="flex h-screen overflow-hidden">
       <Sidebar mobileOpen={mobileSidebarOpen} onMobileClose={() => setMobileSidebarOpen(false)} />
 
@@ -55,5 +57,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       </div>
     </div>
+    </ToastProvider>
   );
 }

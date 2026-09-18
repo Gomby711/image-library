@@ -57,6 +57,13 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 
+  /* Consolidated duration scale — new UI motion should reach for one of
+     these instead of hardcoding another one-off value. */
+  --duration-xs: 120ms;
+  --duration-sm: 200ms;
+  --duration-md: 300ms;
+  --duration-lg: 450ms;
+
   /* Vertical nav — solid Coverking blue, matching the logo's own background
      so the sidebar header logo blends straight into it. */
   --sidebar-bg: var(--accent);
@@ -282,14 +289,38 @@ body {
   background: var(--accent-hover);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
   pointer-events: none;
+  opacity: 1;
+  transform: scaleX(1);
+  transition: opacity var(--duration-xs) ease-out, transform var(--duration-xs) ease-out;
+}
+/* Mounts fresh on every drag-over (no exit animation needed — it just
+   disappears with the drag), so the entrance needs @starting-style rather
+   than a class toggle: there's no earlier frame to transition from otherwise. */
+@starting-style {
+  .drop-indicator-line {
+    opacity: 0;
+    transform: scaleX(0.92);
+  }
 }
 
 /* Image grid reorder: a blue ring on whichever card the dragged image is
-   currently hovering over, so the drop position is visible at a glance. */
-.grid-drop-highlight {
-  outline: 3px solid var(--accent);
+   currently hovering over, so the drop position is visible at a glance.
+   The transparent base + transition live on every card so the ring can
+   fade in/out via a real property change instead of an opacity toggle,
+   which would fade the whole card rather than just the highlight. */
+.drop-target-base {
+  outline: 3px solid transparent;
   outline-offset: -3px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0) inset;
+  transition: outline-color var(--duration-xs) ease-out, box-shadow var(--duration-xs) ease-out;
+}
+.grid-drop-highlight {
+  outline-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5) inset;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drop-indicator-line { transition: opacity var(--duration-xs) ease-out; transform: none !important; }
+  .drop-target-base { transition: none; }
 }
 
 /* Reorder / select mode hint banners — slide down from just above. */

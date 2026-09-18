@@ -124,7 +124,7 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
           <button
             onClick={goPrev}
             aria-label="Previous image"
-            className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/10 p-2.5 text-white transition hover:bg-white/20 hover:scale-105"
+            className="absolute left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/10 p-2.5 text-white transition hover:bg-white/20 hover:scale-105 active:scale-90 active:duration-[100ms]"
           >
             <ChevronLeft className="size-6" />
           </button>
@@ -147,7 +147,7 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags }: 
           <button
             onClick={goNext}
             aria-label="Next image"
-            className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/10 p-2.5 text-white transition hover:bg-white/20 hover:scale-105"
+            className="absolute right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/10 p-2.5 text-white transition hover:bg-white/20 hover:scale-105 active:scale-90 active:duration-[100ms]"
           >
             <ChevronRight className="size-6" />
           </button>

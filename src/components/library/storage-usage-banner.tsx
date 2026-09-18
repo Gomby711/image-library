@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, HardDrive } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import type { StorageLevel } from "@/lib/storage-tracker";
@@ -59,15 +60,38 @@ export function StorageUsageBanner() {
           };
 
   return (
-    <div className={cn("flex items-center gap-3 rounded-[var(--radius-md)] border px-3 py-2.5 text-sm", tone.wrap)}>
-      {stats.level === "warning" ? (
-        <HardDrive className="size-4 shrink-0" />
-      ) : (
-        <AlertTriangle className="size-4 shrink-0" />
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-[var(--radius-md)] border px-3 py-2.5 text-sm transition-colors duration-200",
+        tone.wrap
       )}
+    >
+      <AnimatePresence mode="wait">
+        <motion.span
+          key={stats.level === "warning" ? "warning-icon" : "alert-icon"}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.2 }}
+          className="shrink-0"
+        >
+          {stats.level === "warning" ? <HardDrive className="size-4" /> : <AlertTriangle className="size-4" />}
+        </motion.span>
+      </AnimatePresence>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-medium">{tone.label}</span>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={tone.label}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.2 }}
+              className="font-medium"
+            >
+              {tone.label}
+            </motion.span>
+          </AnimatePresence>
           <span className="shrink-0 text-xs opacity-80">
             {formatBytes(stats.usedBytes)} / {formatBytes(stats.limitBytes)}
           </span>
