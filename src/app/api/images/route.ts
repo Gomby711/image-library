@@ -1,5 +1,7 @@
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { NextResponse } from "next/server";
+
+export const maxDuration = 60;
 import { mutateDb, readDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { putImageFile, deleteImageFile } from "@/lib/blob";
@@ -14,7 +16,7 @@ import {
 } from "@/lib/images";
 import { readDimensions } from "@/lib/image-dimensions";
 import { convertToJpeg } from "@/lib/image-convert";
-import type { ImageRecord, SortKey } from "@/lib/types";
+import type { ActivityRecord, ExifData, ImageRecord, SortKey } from "@/lib/types";
 
 export async function GET(req: Request) {
   return withApiErrors(async () => {
@@ -112,45 +114,97 @@ export async function POST(req: Request) {
     const created: ImageRecord[] = [];
     const rejected: { name: string; reason: string }[] = [];
 
-    for (const file of files) {
-      const origExt = extensionFromFilename(file.name);
-      let finalExt = origExt;
-      let buffer = Buffer.from(await file.arrayBuffer()) as Buffer;
+    type FileResult =
+      | { kind: "ok"; record: ImageRecord }
+      | { kind: "rejected"; name: string; reason: string };
 
-      if (isConvertibleExtension(origExt)) {
-        try {
-          buffer = await convertToJpeg(buffer, origExt);
-          finalExt = "jpg";
-        } catch {
-          rejected.push({ name: file.name, reason: `Could not convert .${origExt} file` });
-          continue;
+    const results = await Promise.allSettled(
+      files.map(async (file): Promise<FileResult> => {
+        const origExt = extensionFromFilename(file.name);
+        let finalExt = origExt;
+        let buffer = Buffer.from(await file.arrayBuffer()) as Buffer;
+
+        if (isConvertibleExtension(origExt)) {
+          try {
+            buffer = await convertToJpeg(buffer, origExt);
+            finalExt = "jpg";
+          } catch {
+            return { kind: "rejected", name: file.name, reason: `Could not convert .${origExt} file` };
+          }
+        } else if (!isAcceptedExtension(origExt)) {
+          return { kind: "rejected", name: file.name, reason: `Unsupported file type ".${origExt}"` };
         }
-      } else if (!isAcceptedExtension(origExt)) {
-        rejected.push({ name: file.name, reason: `Unsupported file type ".${origExt}"` });
-        continue;
+
+        const hash = createHash("sha256").update(buffer).digest("hex");
+
+        // Extract dominant color (Sharp stats) — non-fatal if it fails
+        let dominantColor: string | undefined;
+        try {
+          const sharp = (await import("sharp")).default;
+          const { dominant } = await sharp(buffer).stats();
+          dominantColor = `#${dominant.r.toString(16).padStart(2, "0")}${dominant.g.toString(16).padStart(2, "0")}${dominant.b.toString(16).padStart(2, "0")}`;
+        } catch { /* not critical */ }
+
+        // Extract EXIF metadata — JPEG/TIFF only, non-fatal if it fails
+        let exif: ExifData | undefined;
+        if (finalExt === "jpg" || finalExt === "jpeg" || finalExt === "tiff" || finalExt === "tif") {
+          try {
+            const ExifReader = (await import("exifreader")).default;
+            const tags = ExifReader.load(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+            const makeStr = tags["Make"]?.description ?? "";
+            const modelStr = tags["Model"]?.description ?? "";
+            const camera = [makeStr, modelStr].filter(Boolean).join(" ").trim() || undefined;
+            exif = {
+              camera,
+              lens: (tags["LensModel"]?.description ?? tags["Lens"]?.description) || undefined,
+              focalLength: tags["FocalLength"]?.description || undefined,
+              aperture: tags["FNumber"]?.description || undefined,
+              shutterSpeed: tags["ExposureTime"]?.description || undefined,
+              iso: (tags["ISOSpeedRatings"]?.description ?? tags["PhotographicSensitivity"]?.description) || undefined,
+              capturedAt: tags["DateTimeOriginal"]?.description || undefined,
+            };
+            // Drop entirely if nothing meaningful was found
+            if (!Object.values(exif).some(Boolean)) exif = undefined;
+          } catch { /* not critical */ }
+        }
+
+        const id = randomUUID();
+        const filename = `${id}.${finalExt}`;
+        await putImageFile(filename, buffer, mimeForExtension(finalExt));
+
+        const { width, height } = readDimensions(buffer, finalExt);
+
+        return {
+          kind: "ok",
+          record: {
+            id,
+            filename,
+            originalName: file.name,
+            ext: finalExt,
+            mimeType: mimeForExtension(finalExt),
+            size: buffer.byteLength,
+            width,
+            height,
+            aspect: classifyAspect(width, height),
+            tags,
+            folderId,
+            uploadedAt: new Date().toISOString(),
+            dominantColor,
+            exif,
+            hash,
+          },
+        };
+      })
+    );
+
+    for (const result of results) {
+      if (result.status === "rejected") {
+        rejected.push({ name: "unknown", reason: String(result.reason) });
+      } else if (result.value.kind === "rejected") {
+        rejected.push({ name: result.value.name, reason: result.value.reason });
+      } else {
+        created.push(result.value.record);
       }
-
-      const id = randomUUID();
-      const filename = `${id}.${finalExt}`;
-      await putImageFile(filename, buffer, mimeForExtension(finalExt));
-
-      const { width, height } = readDimensions(buffer, finalExt);
-
-      const record: ImageRecord = {
-        id,
-        filename,
-        originalName: file.name,
-        ext: finalExt,
-        mimeType: mimeForExtension(finalExt),
-        size: buffer.byteLength,
-        width,
-        height,
-        aspect: classifyAspect(width, height),
-        tags,
-        folderId,
-        uploadedAt: new Date().toISOString(),
-      };
-      created.push(record);
     }
 
     // The reservation above covers every incoming file's pre-conversion
@@ -161,17 +215,42 @@ export async function POST(req: Request) {
     if (reservationDelta !== 0) await adjustBytes(reservationDelta);
 
     if (created.length > 0) {
+      const duplicates: { name: string; reason: string }[] = [];
       try {
         await mutateDb((db) => {
-          // Assigned one at a time (not against a snapshot) so two reference
-          // images uploaded in the same batch number sequentially instead of
-          // both claiming "_1".
+          const existingHashes = new Set(db.images.map((img) => img.hash).filter(Boolean));
+          const finalCreated: ImageRecord[] = [];
+
           for (const record of created) {
+            // Duplicate detection: if another image already has the same hash, warn and skip
+            if (record.hash && existingHashes.has(record.hash)) {
+              duplicates.push({ name: record.originalName, reason: "Duplicate file — identical image already in your library" });
+              continue;
+            }
+            if (record.hash) existingHashes.add(record.hash);
+
             const refName = computeReferenceName(record.tags, record.ext, db.images, record.id);
             if (refName) record.originalName = refName;
             db.images.unshift(record);
+            finalCreated.push(record);
           }
+
           rememberTags(db, tags);
+
+          if (finalCreated.length > 0) {
+            const entry: ActivityRecord = {
+              id: randomUUID(),
+              kind: "upload",
+              description:
+                finalCreated.length === 1
+                  ? `Uploaded ${finalCreated[0].originalName}`
+                  : `Uploaded ${finalCreated.length} images`,
+              imageIds: finalCreated.map((r) => r.id),
+              createdAt: new Date().toISOString(),
+            };
+            db.activityLog.unshift(entry);
+            if (db.activityLog.length > 200) db.activityLog.length = 200;
+          }
         });
       } catch (err) {
         // DB write failed — roll back the Blob files already uploaded so they
@@ -180,6 +259,13 @@ export async function POST(req: Request) {
         await Promise.allSettled(created.map((r) => deleteImageFile(r.filename)));
         await adjustBytes(-actualUploadedBytes);
         throw err;
+      }
+      // Clean up blob files for duplicate-rejected records
+      if (duplicates.length > 0) {
+        const dupNames = new Set(duplicates.map((d) => d.name));
+        const dupRecords = created.filter((r) => dupNames.has(r.originalName));
+        await Promise.allSettled(dupRecords.map((r) => deleteImageFile(r.filename)));
+        rejected.push(...duplicates);
       }
     }
 

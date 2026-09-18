@@ -81,6 +81,16 @@ export const ACCEPTED_MIME_TYPES: Record<string, string> = {
   xmp: "application/rdf+xml",
 };
 
+export interface ExifData {
+  camera?: string;
+  lens?: string;
+  focalLength?: string;
+  aperture?: string;
+  shutterSpeed?: string;
+  iso?: string;
+  capturedAt?: string;
+}
+
 export interface ImageRecord {
   id: string;
   filename: string;
@@ -94,6 +104,12 @@ export interface ImageRecord {
   tags: string[];
   folderId: string | null;
   uploadedAt: string;
+  /** Dominant color extracted on upload, as a hex string e.g. "#3a5f8c". Used as placeholder while loading. */
+  dominantColor?: string;
+  /** EXIF metadata extracted on upload (JPEG/TIFF only). */
+  exif?: ExifData;
+  /** SHA-256 hash of file contents for duplicate detection. */
+  hash?: string;
 }
 
 export interface FolderRecord {
@@ -170,14 +186,34 @@ export interface CustomTagRecord {
   createdAt: string;
 }
 
+export type ActivityKind =
+  | "upload"
+  | "delete"
+  | "rename"
+  | "tag_add"
+  | "tag_remove"
+  | "bulk_delete"
+  | "bulk_tag";
+
+export interface ActivityRecord {
+  id: string;
+  kind: ActivityKind;
+  /** Human-readable description e.g. "Uploaded hero.jpg" */
+  description: string;
+  /** IDs of images involved */
+  imageIds: string[];
+  createdAt: string;
+}
+
 export interface DbShape {
   images: ImageRecord[];
   folders: FolderRecord[];
   libraryPages: LibraryPageRecord[];
   workspaces: WorkspaceRecord[];
   customTags: CustomTagRecord[];
+  activityLog: ActivityRecord[];
 }
 
 export type SortKey = "date-desc" | "date-asc" | "type-asc" | "type-desc" | "custom";
-export type ViewMode = "grid" | "list" | "carousel";
+export type ViewMode = "grid" | "list" | "carousel" | "masonry";
 export type PageSize = 12 | 24 | 48 | "all";

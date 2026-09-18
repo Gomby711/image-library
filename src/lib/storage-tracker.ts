@@ -74,6 +74,10 @@ export async function adjustBytes(delta: number): Promise<void> {
   await setUsage(usedBytes + delta);
 }
 
+export async function deductBytes(bytes: number): Promise<void> {
+  await adjustBytes(-bytes);
+}
+
 export async function getStorageStats(): Promise<{
   usedBytes: number;
   limitBytes: number;

@@ -65,6 +65,8 @@ export function useImages(filters: ImageFilters) {
   const upload = React.useCallback(
     (files: File[], opts?: { folderId?: string | null; tags?: string[] }) => {
       if (files.length === 0) return;
+      // Enforce 10-file limit per batch
+      if (files.length > 10) files = files.slice(0, 10);
 
       // Register all files in the UI immediately so progress bars appear.
       const batchStamp = `${Date.now()}-${Math.random()}`;
@@ -113,9 +115,13 @@ export function useImages(filters: ImageFilters) {
           refresh();
 
           setTimeout(() => {
-            // Keep errored items visible; remove the successfully uploaded ones.
+            // Remove successfully uploaded items; keep errors visible a bit longer.
             setUploads((prev) => prev.filter((u) => !ids.includes(u.id) || u.status === "error"));
           }, 1800);
+          // Auto-dismiss any per-file rejection errors after 8 seconds
+          setTimeout(() => {
+            setUploads((prev) => prev.filter((u) => !ids.includes(u.id)));
+          }, 8000);
         } else {
           let message = "Upload failed";
           try {
@@ -126,6 +132,9 @@ export function useImages(filters: ImageFilters) {
           setUploads((prev) =>
             prev.map((u) => (ids.includes(u.id) ? { ...u, status: "error" as const, error: message } : u))
           );
+          setTimeout(() => {
+            setUploads((prev) => prev.filter((u) => !ids.includes(u.id)));
+          }, 8000);
         }
       };
 
@@ -133,6 +142,9 @@ export function useImages(filters: ImageFilters) {
         setUploads((prev) =>
           prev.map((u) => (ids.includes(u.id) ? { ...u, status: "error" as const, error: "Network error" } : u))
         );
+        setTimeout(() => {
+          setUploads((prev) => prev.filter((u) => !ids.includes(u.id)));
+        }, 8000);
       };
 
       xhr.send(form);

@@ -1,8 +1,12 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { mutateDb } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
-import { deleteImageFile } from "@/lib/blob";
-import { adjustBytes } from "@/lib/storage-tracker";
+import { deleteImageFile, deleteImageThumbs } from "@/lib/blob";
+import { deductBytes } from "@/lib/storage-tracker";
+import type { ActivityRecord } from "@/lib/types";
+
+const THUMB_WIDTHS = [480];
 
 /** Deletes every image in `ids` in one DB mutation (instead of N separate
  *  read-modify-write cycles), then cleans up their Blob files. This is what
@@ -23,17 +27,26 @@ export async function POST(req: Request) {
         removed.push(img);
         return false;
       });
+      if (removed.length > 0) {
+        const entry: ActivityRecord = {
+          id: randomUUID(),
+          kind: "bulk_delete",
+          description: `Deleted ${removed.length} image${removed.length === 1 ? "" : "s"}`,
+          imageIds: removed.map((img) => img.id),
+          createdAt: new Date().toISOString(),
+        };
+        db.activityLog.unshift(entry);
+        if (db.activityLog.length > 200) db.activityLog.length = 200;
+      }
       return removed;
     });
 
-    await Promise.all(
-      removed.map((img) =>
-        deleteImageFile(img.filename).catch(() => {
-          // file already gone — metadata removal still succeeds
-        })
-      )
-    );
-    await adjustBytes(-removed.reduce((sum, img) => sum + img.size, 0));
+    const totalBytes = removed.reduce((sum, img) => sum + img.size, 0);
+    await Promise.allSettled([
+      ...removed.map((img) => deleteImageFile(img.filename)),
+      ...removed.map((img) => deleteImageThumbs(img.id, THUMB_WIDTHS)),
+      deductBytes(totalBytes),
+    ]);
 
     return NextResponse.json({ deletedIds: removed.map((img) => img.id) });
   });

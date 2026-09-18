@@ -3,7 +3,7 @@
 import * as React from "react";
 import gsap from "gsap";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Download, GripVertical, Maximize2, Pencil, Tag, Trash2 } from "lucide-react";
+import { Check, Download, GripVertical, Info, Maximize2, Pencil, Tag, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatBytes, formatDate } from "@/lib/utils";
@@ -52,10 +52,11 @@ export function downloadImage(image: ImageRecord) {
 
 interface ImageCardProps {
   image: ImageRecord;
-  layout: "grid" | "list";
+  layout: "grid" | "list" | "masonry";
   onExpand: () => void;
   onEditTags: () => void;
   onRename: () => void;
+  onDetail?: () => void;
   /** Double-click-on-name inline rename — commits straight from the card,
    *  no dialog. The pencil icon still opens the full RenameImageDialog. */
   onSaveName: (name: string) => void;
@@ -75,6 +76,8 @@ interface ImageCardProps {
   selectMode?: boolean;
   selected?: boolean;
   onToggleSelect?: () => void;
+  /** Stagger index for entrance animation delay */
+  staggerIndex?: number;
 }
 
 export function ImageCard({
@@ -83,6 +86,7 @@ export function ImageCard({
   onExpand,
   onEditTags,
   onRename,
+  onDetail,
   onSaveName,
   onDelete,
   reorderMode = false,
@@ -93,9 +97,22 @@ export function ImageCard({
   selectMode = false,
   selected = false,
   onToggleSelect,
+  staggerIndex = 0,
 }: ImageCardProps) {
   const cardRef = React.useRef<HTMLDivElement>(null);
   const [imgLoaded, setImgLoaded] = React.useState(false);
+  const [ctxMenu, setCtxMenu] = React.useState<{ x: number; y: number } | null>(null);
+
+  React.useEffect(() => {
+    if (!ctxMenu) return;
+    function close() { setCtxMenu(null); }
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [ctxMenu]);
 
   // Mount fade is a plain CSS animation (see .card-fade-in in globals.css),
   // not a GSAP tween — "Show all" can mount 250+ of these at once, and
@@ -194,6 +211,11 @@ export function ImageCard({
         ref={cardRef}
         {...dragProps}
         onClick={selectMode ? onToggleSelect : undefined}
+        onContextMenu={(e) => {
+          if (selectMode || reorderMode) return;
+          e.preventDefault();
+          setCtxMenu({ x: e.clientX, y: e.clientY });
+        }}
         className={cn(
           "card-fade-in drop-target-base flex items-center gap-4 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]",
           reorderMode && "cursor-grab active:cursor-grabbing",
@@ -201,12 +223,14 @@ export function ImageCard({
           selected && "ring-2 ring-accent",
           dragOver && "grid-drop-highlight"
         )}
+        style={{ "--card-index": staggerIndex } as React.CSSProperties}
       >
         {reorderMode && <GripVertical className="size-4 shrink-0 text-muted-foreground" />}
         {selectMode && <SelectCheckbox selected={selected} />}
         <button
           onClick={reorderMode || selectMode ? undefined : onExpand}
-          className="size-14 shrink-0 overflow-hidden rounded-[var(--radius-sm)] bg-surface-2"
+          className="size-14 shrink-0 overflow-hidden rounded-[var(--radius-sm)]"
+          style={{ backgroundColor: image.dominantColor ?? undefined }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -218,9 +242,6 @@ export function ImageCard({
             onLoad={() => setImgLoaded(true)}
             onError={(e) => {
               const el = e.currentTarget;
-              // A resized copy can occasionally fail (transform hiccup, cold
-              // cache) — fall back to the untransformed original once
-              // instead of leaving a broken-image glyph in its place.
               if (el.dataset.fallback) return;
               el.dataset.fallback = "1";
               el.src = fileUrl(image);
@@ -255,12 +276,16 @@ export function ImageCard({
             <IconButton onClick={onEditTags} label="Edit tags"><Tag className="size-4" /></IconButton>
             <IconButton onClick={() => downloadImage(image)} label="Download"><Download className="size-4" /></IconButton>
             <IconButton onClick={onExpand} label="Expand"><Maximize2 className="size-4" /></IconButton>
+            {onDetail && <IconButton onClick={onDetail} label="Details"><Info className="size-4" /></IconButton>}
             <IconButton onClick={onDelete} label="Delete" destructive><Trash2 className="size-4" /></IconButton>
           </div>
         )}
+        {ctxMenu && <ContextMenu x={ctxMenu.x} y={ctxMenu.y} onExpand={onExpand} onEditTags={onEditTags} onRename={onRename} onDetail={onDetail} onDownload={() => downloadImage(image)} onDelete={onDelete} />}
       </div>
     );
   }
+
+  const isMasonry = layout === "masonry";
 
   return (
     <div
@@ -268,14 +293,21 @@ export function ImageCard({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={selectMode ? onToggleSelect : undefined}
+      onContextMenu={(e) => {
+        if (selectMode || reorderMode) return;
+        e.preventDefault();
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
       {...dragProps}
       className={cn(
         "card-fade-in drop-target-base group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-[box-shadow,border-color] hover:border-accent/40 hover:shadow-[var(--shadow-glow)]",
+        isMasonry && "mb-4 break-inside-avoid",
         reorderMode && "cursor-grab active:cursor-grabbing",
         selectMode && "cursor-pointer",
         selected && "ring-2 ring-accent",
         dragOver && "grid-drop-highlight"
       )}
+      style={{ "--card-index": staggerIndex } as React.CSSProperties}
     >
       {selectMode && (
         <div className="absolute left-2 top-2 z-10">
@@ -284,7 +316,11 @@ export function ImageCard({
       )}
       <button
         onClick={reorderMode || selectMode ? undefined : onExpand}
-        className="relative block aspect-[4/3] w-full overflow-hidden bg-surface-2"
+        className={cn(
+          "relative block w-full overflow-hidden",
+          isMasonry ? "aspect-auto" : "aspect-[4/3]"
+        )}
+        style={{ backgroundColor: image.dominantColor ?? undefined }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -296,15 +332,13 @@ export function ImageCard({
           onLoad={() => setImgLoaded(true)}
           onError={(e) => {
             const el = e.currentTarget;
-            // A resized copy can occasionally fail (transform hiccup, cold
-            // cache) — fall back to the untransformed original once instead
-            // of leaving a broken-image glyph in its place.
             if (el.dataset.fallback) return;
             el.dataset.fallback = "1";
             el.src = fileUrl(image);
           }}
           className={cn(
-            "h-full w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-105",
+            "w-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-105",
+            isMasonry ? "h-auto" : "h-full",
             imgLoaded ? "opacity-100" : "opacity-0"
           )}
         />
@@ -348,9 +382,12 @@ export function ImageCard({
           <IconButton onClick={onRename} label="Rename"><Pencil className="size-4" /></IconButton>
           <IconButton onClick={onEditTags} label="Edit tags"><Tag className="size-4" /></IconButton>
           <IconButton onClick={() => downloadImage(image)} label="Download"><Download className="size-4" /></IconButton>
+          {onDetail && <IconButton onClick={onDetail} label="Details"><Info className="size-4" /></IconButton>}
           <IconButton onClick={onDelete} label="Delete" destructive><Trash2 className="size-4" /></IconButton>
         </div>
       )}
+
+      {ctxMenu && <ContextMenu x={ctxMenu.x} y={ctxMenu.y} onExpand={onExpand} onEditTags={onEditTags} onRename={onRename} onDetail={onDetail} onDownload={() => downloadImage(image)} onDelete={onDelete} />}
     </div>
   );
 }
@@ -406,5 +443,68 @@ function IconButton({
     >
       {children}
     </Button>
+  );
+}
+
+function ContextMenu({
+  x, y,
+  onExpand, onEditTags, onRename, onDetail, onDownload, onDelete,
+}: {
+  x: number; y: number;
+  onExpand: () => void;
+  onEditTags: () => void;
+  onRename: () => void;
+  onDetail?: () => void;
+  onDownload: () => void;
+  onDelete: () => void;
+}) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [pos, setPos] = React.useState({ x, y });
+
+  React.useEffect(() => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    setPos({
+      x: x + rect.width > vw ? x - rect.width : x,
+      y: y + rect.height > vh ? y - rect.height : y,
+    });
+  }, [x, y]);
+
+  const items = [
+    { label: "Open", icon: <Maximize2 className="size-3.5" />, onClick: onExpand },
+    { label: "Edit tags", icon: <Tag className="size-3.5" />, onClick: onEditTags },
+    { label: "Rename", icon: <Pencil className="size-3.5" />, onClick: onRename },
+    ...(onDetail ? [{ label: "Details", icon: <Info className="size-3.5" />, onClick: onDetail }] : []),
+    { label: "Download", icon: <Download className="size-3.5" />, onClick: onDownload },
+    { label: "Delete", icon: <Trash2 className="size-3.5" />, onClick: onDelete, destructive: true },
+  ];
+
+  return (
+    <div
+      ref={ref}
+      className="fixed z-[200] min-w-[160px] overflow-hidden rounded-[var(--radius-md)] border border-border bg-surface shadow-[var(--shadow-lg)] py-1"
+      style={{ left: pos.x, top: pos.y }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {items.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            item.onClick();
+          }}
+          className={cn(
+            "flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-surface-2",
+            item.destructive ? "text-destructive" : "text-foreground"
+          )}
+        >
+          {item.icon}
+          {item.label}
+        </button>
+      ))}
+    </div>
   );
 }

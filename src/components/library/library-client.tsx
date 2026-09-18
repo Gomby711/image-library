@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ImageOff, Tag, Tags, Trash2, X } from "lucide-react";
+import { Download, ImageOff, Tag, Tags, Trash2, X } from "lucide-react";
 import { useImages } from "@/hooks/use-images";
 import { UploadDropzone } from "@/components/library/upload-dropzone";
 import { StorageUsageBanner } from "@/components/library/storage-usage-banner";
@@ -10,6 +10,7 @@ import { Toolbar } from "@/components/library/toolbar";
 import { Pagination } from "@/components/library/pagination";
 import { HERO_DRAG_MIME, ImageCard, fileUrl, THUMB_WIDTH } from "@/components/library/image-card";
 import { Lightbox } from "@/components/library/lightbox";
+import { ActivityLog } from "@/components/library/activity-log";
 import { TagEditorDialog } from "@/components/library/tag-editor-dialog";
 import { RenameImageDialog } from "@/components/library/rename-image-dialog";
 import { BulkTagDialog } from "@/components/library/bulk-tag-dialog";
@@ -25,10 +26,10 @@ const FIRST_UPLOAD_KEY = "coverking:first-upload-celebrated";
 
 interface LibraryClientProps {
   hideUpload?: boolean;
-  /** Locks this view to images carrying exactly this tag — used by custom Library Pages.
-   *  New uploads made from this view are auto-tagged with it. */
   lockedTag?: string | null;
 }
+
+const DEFAULT_ACCENT = "#117fd1";
 
 export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryClientProps) {
   const [search, setSearch] = React.useState("");
@@ -39,45 +40,55 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(null);
   const [tagEditorImage, setTagEditorImage] = React.useState<ImageRecord | null>(null);
   const [renameImage, setRenameImage] = React.useState<ImageRecord | null>(null);
+  const [showActivityLog, setShowActivityLog] = React.useState(false);
+  const [accentColor, setAccentColor] = React.useState(DEFAULT_ACCENT);
+
+  // Load accent color from localStorage
+  React.useEffect(() => {
+    try {
+      const stored = localStorage.getItem("accent-color");
+      if (stored) setAccentColor(stored);
+    } catch { /* ignore */ }
+  }, []);
+
+  // Apply accent color as CSS variable
+  React.useEffect(() => {
+    document.documentElement.style.setProperty("--accent", accentColor);
+    try { localStorage.setItem("accent-color", accentColor); } catch { /* ignore */ }
+  }, [accentColor]);
 
   const [reorderMode, setReorderMode] = React.useState(false);
   const prePageSize = React.useRef<PageSize | null>(null);
   const dragIndexRef = React.useRef<number | null>(null);
-  // Which card is currently under the pointer during a reorder drag — shown
-  // with a blue edge highlight so the drop position is unambiguous, not just
-  // inferred from the live shuffle.
   const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
 
   const [selectMode, setSelectMode] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [bulkTagOpen, setBulkTagOpen] = React.useState(false);
   const [bulkRemoveOpen, setBulkRemoveOpen] = React.useState(false);
+  const [bulkDownloading, setBulkDownloading] = React.useState(false);
   const gridRef = React.useRef<HTMLDivElement>(null);
   const cardElRefs = React.useRef<Map<string, HTMLElement>>(new Map());
   const [marquee, setMarquee] = React.useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const dragStartRef = React.useRef<{ x: number; y: number } | null>(null);
-  // Viewport-relative start point, used only to measure whether the pointer
-  // has moved far enough to count as a drag (vs. a plain click on a card).
   const dragStartClientRef = React.useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = React.useRef(false);
-  // Set true for one tick right after a real drag ends, so the click event
-  // the browser fires on mouseup doesn't also toggle whichever card the
-  // cursor happened to land on.
   const suppressClickRef = React.useRef(false);
-  // Snapshot of whatever was already selected (by individual clicks, or an
-  // earlier drag) before this marquee drag began, so a new drag adds to the
-  // selection instead of replacing it outright.
   const baseSelectionRef = React.useRef<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = React.useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
   const toast = useToast();
 
-  const effectivePageSize: PageSize = view === "carousel" || reorderMode ? "all" : pageSize;
+  // Keyboard navigation within the grid
+  const [focusedIndex, setFocusedIndex] = React.useState<number | null>(null);
+
+  // Infinite scroll sentinel
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const [infiniteScroll, setInfiniteScroll] = React.useState(false);
+
+  const effectivePageSize: PageSize = view === "carousel" || reorderMode ? "all" : infiniteScroll ? "all" : pageSize;
   const effectiveSort: SortKey = reorderMode ? "custom" : sort;
 
-  // On a tag-locked Library Page (not the main library), a card can be
-  // dragged out of the grid and dropped onto that page's hero banner —
-  // only when nothing else is already using drag/click gestures on it.
   const heroDraggable = !!lockedTag && !selectMode && !reorderMode;
   function handleHeroDragStart(e: React.DragEvent, imageId: string) {
     if (!heroDraggable) return;
@@ -98,13 +109,14 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     deleteImage,
     previewReorder,
     commitReorder,
+    refresh,
   } = useImages({
-      search,
-      sort: effectiveSort,
-      tag: lockedTag,
-      page,
-      pageSize: effectivePageSize,
-    });
+    search,
+    sort: effectiveSort,
+    tag: lockedTag,
+    page,
+    pageSize: effectivePageSize,
+  });
 
   React.useEffect(() => {
     setPage(1);
@@ -147,9 +159,6 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   function toggleReorder() {
     if (reorderMode) {
       setReorderMode(false);
-      // Land on "Custom order" (not whatever sort was active before) so the
-      // arrangement just dragged into place is what the user actually sees
-      // next — reverting to "Newest first" here would silently re-hide it.
       setSort("custom");
       if (prePageSize.current) setPageSize(prePageSize.current);
       prePageSize.current = null;
@@ -165,10 +174,6 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   }
 
   function toggleSelected(id: string) {
-    // Swallow the click that immediately follows a real marquee drag — the
-    // browser fires it on mouseup regardless of what the drag already did,
-    // and without this it would flip whatever card the cursor ended on a
-    // second time.
     if (suppressClickRef.current) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -191,16 +196,6 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
   const DRAG_THRESHOLD_PX = 4;
 
-  // Rubber-band / marquee select: click-drag anywhere over the grid —
-  // including starting on top of a card, not just the thin gaps between
-  // them — selects every card the rectangle overlaps, same as a desktop
-  // file manager. A short distance threshold before the rectangle appears
-  // means an ordinary click-to-toggle on a single card still works exactly
-  // as before; only a real drag engages the marquee. The start corner is
-  // stored in document-absolute coordinates (client + scroll offset) rather
-  // than "relative to the grid's rect right now" — that rect moves once
-  // auto-scroll kicks in, so a rect-relative start point would silently
-  // drift away from where the drag actually began.
   function handleGridMouseDown(e: React.MouseEvent<HTMLDivElement>) {
     if (!selectMode || e.button !== 0) return;
     baseSelectionRef.current = new Set(selectedIds);
@@ -220,9 +215,6 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
       const rect = gridRef.current?.getBoundingClientRect();
       const start = dragStartRef.current;
       if (!rect || !start) return;
-      // Both corners derived fresh from the CURRENT rect + current scroll
-      // every tick, so the rectangle stays anchored to the real document
-      // positions no matter how much the page has auto-scrolled since.
       const x0 = start.x - (rect.left + window.scrollX);
       const y0 = start.y - (rect.top + window.scrollY);
       const x1 = lastClientX - rect.left;
@@ -246,9 +238,6 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
       setSelectedIds(new Set([...baseSelectionRef.current, ...hit]));
     }
 
-    // "Giant" selections need to reach content off-screen — while dragging
-    // near the top/bottom edge of the viewport, keep scrolling the page so
-    // the marquee can grow past what was visible when the drag started.
     const EDGE = 60;
     const MAX_SPEED = 22;
     function autoScrollTick() {
@@ -285,8 +274,6 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
           setMarquee({ x0: x, y0: y, x1: x, y1: y });
         }
       }
-      // Dragging is a text-selection / native-image-drag hazard once it's
-      // confirmed as a real marquee — stop the browser from doing either.
       e.preventDefault();
       computeSelection();
     }
@@ -312,6 +299,51 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
       if (autoScrollFrame) cancelAnimationFrame(autoScrollFrame);
     };
   }, [selectMode]);
+
+  // Keyboard navigation in grid/list/masonry
+  React.useEffect(() => {
+    if (lightboxIndex !== null) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (view === "carousel") return;
+
+      const cols = view === "list" ? 1 : 4; // approximate columns
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.min(items.length - 1, (prev ?? -1) + 1));
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.max(0, (prev ?? 0) - 1));
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.min(items.length - 1, (prev ?? -1) + cols));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.max(0, (prev ?? cols) - cols));
+      } else if (e.key === "Enter" && focusedIndex !== null) {
+        setLightboxIndex(focusedIndex);
+      } else if (e.key === "Delete" && focusedIndex !== null && !selectMode) {
+        const img = items[focusedIndex];
+        if (img && window.confirm(`Delete "${img.originalName}"?`)) {
+          deleteImage(img.id);
+          setFocusedIndex(null);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [items, focusedIndex, view, lightboxIndex, selectMode, deleteImage]);
+
+  // Click outside grid clears focused index
+  React.useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (gridRef.current && !gridRef.current.contains(e.target as Node)) {
+        setFocusedIndex(null);
+      }
+    }
+    window.addEventListener("click", onClick);
+    return () => window.removeEventListener("click", onClick);
+  }, []);
 
   async function handleBulkApply(tags: string[]) {
     const ok = await bulkAddTags(Array.from(selectedIds), tags);
@@ -357,8 +389,33 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     }
   }
 
-  // Union of every tag across the currently-selected images — the removal
-  // dialog only offers tags that actually exist somewhere in the selection.
+  async function handleBulkDownload() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkDownloading(true);
+    try {
+      const res = await fetch("/api/images/bulk-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `images-${ids.length}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setBulkDownloading(false);
+    }
+  }
+
+  async function handleQuickTag(image: ImageRecord, tags: string[]) {
+    await updateImage(image.id, { tags });
+  }
+
   const selectedTagsUnion = React.useMemo(() => {
     const set = new Set<string>();
     for (const img of items) {
@@ -391,11 +448,6 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
 
   const slides: CoverflowSlide[] = items.map((img) => ({
     id: img.id,
-    // The carousel card tops out around 260px wide — loading every image's
-    // full, often multi-MB original just to show it that small was why the
-    // carousel lagged and images could fail to render at all once a
-    // library had a lot of them (too much simultaneous bandwidth/decode
-    // work). A resized copy is plenty sharp at this size.
     src: fileUrl(img, { width: THUMB_WIDTH }),
     alt: img.originalName,
     title: img.originalName,
@@ -407,260 +459,329 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     ],
   }));
 
+  const sharedCardProps = (img: ImageRecord, idx: number) => ({
+    image: img,
+    onExpand: () => setLightboxIndex(idx),
+    onEditTags: () => setTagEditorImage(img),
+    onRename: () => setRenameImage(img),
+    onSaveName: (name: string) => updateImage(img.id, { originalName: name }),
+    onDelete: () => deleteImage(img.id),
+    reorderMode,
+    dragOver: reorderMode && dragOverIndex === idx,
+    onDragStart: () => handleDragStart(idx),
+    onDragEnter: () => handleDragEnter(idx),
+    onDragEnd: handleDragEnd,
+    selectMode,
+    selected: selectedIds.has(img.id),
+    onToggleSelect: () => toggleSelected(img.id),
+    staggerIndex: idx,
+  });
+
   return (
-    <div className="flex flex-col gap-6">
-      {!hideUpload && !reorderMode && !selectMode && (
-        <>
-          <StorageUsageBanner />
-          <UploadDropzone
-            onFiles={(files) => upload(files, { tags: lockedTag ? [lockedTag] : undefined })}
-            uploads={uploads}
+    <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 flex-col gap-6 min-w-0">
+        {!hideUpload && !reorderMode && !selectMode && (
+          <div className="flex flex-col gap-3">
+            <StorageUsageBanner />
+            <UploadDropzone
+              onFiles={(files) => upload(files, { tags: lockedTag ? [lockedTag] : undefined })}
+              uploads={uploads}
+            />
+          </div>
+        )}
+
+        <Toolbar
+          search={search}
+          onSearchChange={setSearch}
+          sort={sort}
+          onSortChange={setSort}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          view={view}
+          onViewChange={setView}
+          total={total}
+          reorderMode={reorderMode}
+          onToggleReorder={toggleReorder}
+          selectMode={selectMode}
+          onToggleSelect={toggleSelectMode}
+          visibleCount={items.length}
+          allVisibleSelected={allVisibleSelected}
+          onSelectAll={handleSelectAllToggle}
+          selectedCount={selectedIds.size}
+          onBulkDownload={handleBulkDownload}
+          showActivityLog={showActivityLog}
+          onToggleActivityLog={() => setShowActivityLog((v) => !v)}
+          accentColor={accentColor}
+          onAccentColorChange={setAccentColor}
+        />
+
+        <AnimatePresence>
+          {reorderMode && (
+            <motion.p
+              key="reorder-banner"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground"
+            >
+              Drag any card to set a custom order. Changes save automatically — click "Done" when finished.
+            </motion.p>
+          )}
+          {selectMode && (
+            <motion.p
+              key="select-banner"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground"
+            >
+              Click a card to select it, click-and-drag to select several. Use{" "}
+              <kbd className="rounded bg-surface-2 px-1 py-0.5 font-mono text-xs">Del</kbd> on a focused card to delete.
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        {/* Infinite scroll toggle */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => setInfiniteScroll((v) => !v)}
+            className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 transition hover:border-accent hover:text-accent"
+          >
+            <span className={`size-2 rounded-full ${infiniteScroll ? "bg-accent" : "bg-muted"}`} />
+            {infiniteScroll ? "Infinite scroll on" : "Infinite scroll off"}
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-[4/3] w-full" />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="empty-state-in flex flex-col items-center gap-4 rounded-[var(--radius-lg)] border border-dashed border-border py-20 text-center text-muted-foreground">
+            <div className="rounded-full border border-border bg-surface p-4">
+              <ImageOff className="size-8 opacity-40" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-medium text-foreground">No images found</p>
+              <p className="text-xs opacity-60">Upload some images, or clear your search filters.</p>
+            </div>
+          </div>
+        ) : view === "carousel" ? (
+          <CoverflowCarousel slides={slides} onSelect={(_, idx) => setLightboxIndex(idx)} />
+        ) : view === "masonry" ? (
+          <div
+            ref={gridRef}
+            onMouseDown={handleGridMouseDown}
+            className="relative select-none"
+            style={{ columnCount: 3, columnGap: "1rem" }}
+          >
+            {items.map((img, idx) => (
+              <div
+                key={img.id}
+                ref={(el) => {
+                  if (el) cardElRefs.current.set(img.id, el);
+                  else cardElRefs.current.delete(img.id);
+                }}
+                draggable={heroDraggable}
+                onDragStart={(e) => handleHeroDragStart(e, img.id)}
+                onClick={() => setFocusedIndex(idx)}
+                className={focusedIndex === idx ? "ring-2 ring-accent rounded-[var(--radius-lg)]" : undefined}
+              >
+                <ImageCard
+                  {...sharedCardProps(img, idx)}
+                  layout="masonry"
+                />
+              </div>
+            ))}
+          </div>
+        ) : view === "list" ? (
+          <div ref={gridRef} onMouseDown={handleGridMouseDown} className="relative flex select-none flex-col gap-2">
+            {items.map((img, idx) => (
+              <motion.div
+                key={img.id}
+                layout
+                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                ref={(el) => {
+                  if (el) cardElRefs.current.set(img.id, el as HTMLElement);
+                  else cardElRefs.current.delete(img.id);
+                }}
+                style={{ "--card-index": idx } as React.CSSProperties}
+                draggable={heroDraggable}
+                onDragStart={(e) => handleHeroDragStart(e as unknown as React.DragEvent, img.id)}
+                onClick={() => setFocusedIndex(idx)}
+                className={focusedIndex === idx ? "ring-2 ring-accent rounded-[var(--radius-md)]" : undefined}
+              >
+                <ImageCard
+                  {...sharedCardProps(img, idx)}
+                  layout="list"
+                />
+              </motion.div>
+            ))}
+            {marquee && (
+              <div
+                className="pointer-events-none absolute rounded-[var(--radius-sm)] border border-accent bg-accent/15"
+                style={{
+                  left: Math.min(marquee.x0, marquee.x1),
+                  top: Math.min(marquee.y0, marquee.y1),
+                  width: Math.abs(marquee.x1 - marquee.x0),
+                  height: Math.abs(marquee.y1 - marquee.y0),
+                }}
+              />
+            )}
+          </div>
+        ) : (
+          /* grid view */
+          <div
+            ref={gridRef}
+            onMouseDown={handleGridMouseDown}
+            className="relative grid select-none grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+          >
+            {items.map((img, idx) => (
+              <motion.div
+                key={img.id}
+                layout
+                transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                ref={(el) => {
+                  if (el) cardElRefs.current.set(img.id, el as HTMLElement);
+                  else cardElRefs.current.delete(img.id);
+                }}
+                style={{ "--card-index": idx } as React.CSSProperties}
+                draggable={heroDraggable}
+                onDragStart={(e) => handleHeroDragStart(e as unknown as React.DragEvent, img.id)}
+                onClick={() => setFocusedIndex(idx)}
+                className={focusedIndex === idx ? "ring-2 ring-accent rounded-[var(--radius-lg)]" : undefined}
+              >
+                <ImageCard
+                  {...sharedCardProps(img, idx)}
+                  layout="grid"
+                />
+              </motion.div>
+            ))}
+            {marquee && (
+              <div
+                className="pointer-events-none absolute rounded-[var(--radius-sm)] border border-accent bg-accent/15"
+                style={{
+                  left: Math.min(marquee.x0, marquee.x1),
+                  top: Math.min(marquee.y0, marquee.y1),
+                  width: Math.abs(marquee.x1 - marquee.x0),
+                  height: Math.abs(marquee.y1 - marquee.y0),
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Infinite scroll sentinel / pagination */}
+        {view !== "carousel" && !reorderMode && !infiniteScroll && (
+          <Pagination page={page} pageSize={effectivePageSize} total={total} onPageChange={setPage} />
+        )}
+        {infiniteScroll && (
+          <div ref={sentinelRef} className="h-4" />
+        )}
+
+        {/* Floating bulk action bar */}
+        <AnimatePresence>
+          {selectMode && selectedIds.size > 0 && (
+            <motion.div
+              key="bulk-bar"
+              initial={{ y: 72, opacity: 0, scale: 0.92 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 72, opacity: 0, scale: 0.92 }}
+              transition={{ type: "spring", damping: 22, stiffness: 280 }}
+              className="fixed inset-x-2 bottom-6 z-40 flex justify-center sm:inset-x-0"
+            >
+              <div className="flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-border bg-surface-2 px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-md sm:gap-3 sm:px-4">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={selectedIds.size}
+                    initial={{ y: -8, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 8, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-sm font-medium"
+                  >
+                    {selectedIds.size} selected
+                  </motion.span>
+                </AnimatePresence>
+                <Button size="sm" onClick={() => setBulkTagOpen(true)}>
+                  <Tag className="size-4" /> Add tag
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setBulkRemoveOpen(true)}>
+                  <Tags className="size-4" /> Remove tag
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleBulkDownload} disabled={bulkDownloading}>
+                  <Download className="size-4" /> {bulkDownloading ? "Zipping…" : "Download ZIP"}
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={bulkDeleting}>
+                  <Trash2 className="size-4" /> {bulkDeleting ? "Deleting…" : "Delete"}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                  <X className="size-4" /> Clear
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {lightboxIndex !== null && (
+          <Lightbox
+            images={items}
+            index={lightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+            onIndexChange={setLightboxIndex}
+            onEditTags={(img) => setTagEditorImage(img)}
+            onQuickTag={handleQuickTag}
           />
-        </>
-      )}
-
-      <Toolbar
-        search={search}
-        onSearchChange={setSearch}
-        sort={sort}
-        onSortChange={setSort}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        view={view}
-        onViewChange={setView}
-        total={total}
-        reorderMode={reorderMode}
-        onToggleReorder={toggleReorder}
-        selectMode={selectMode}
-        onToggleSelect={toggleSelectMode}
-        visibleCount={items.length}
-        allVisibleSelected={allVisibleSelected}
-        onSelectAll={handleSelectAllToggle}
-      />
-
-      <AnimatePresence>
-        {reorderMode && (
-          <motion.p
-            key="reorder-banner"
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground"
-          >
-            Drag any card to set a custom order. Changes save automatically — click "Done" when finished.
-          </motion.p>
         )}
-        {selectMode && (
-          <motion.p
-            key="select-banner"
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="rounded-[var(--radius-md)] border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground"
-          >
-            Click a card to select it, click-and-drag across the grid to select several at once, or use "Select all".
-          </motion.p>
-        )}
-      </AnimatePresence>
 
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-[4/3] w-full" />
-          ))}
-        </div>
-      ) : items.length === 0 ? (
-        <div className="empty-state-in flex flex-col items-center gap-4 rounded-[var(--radius-lg)] border border-dashed border-border py-20 text-center text-muted-foreground">
-          <div className="rounded-full border border-border bg-surface p-4">
-            <ImageOff className="size-8 opacity-40" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-foreground">No images found</p>
-            <p className="text-xs opacity-60">Upload some images, or clear your search filters.</p>
-          </div>
-        </div>
-      ) : view === "carousel" ? (
-        <CoverflowCarousel slides={slides} onSelect={(_, idx) => setLightboxIndex(idx)} />
-      ) : view === "grid" ? (
-        <div
-          ref={gridRef}
-          onMouseDown={handleGridMouseDown}
-          className="relative grid select-none grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
-        >
-          {items.map((img, idx) => (
-            <div
-              key={img.id}
-              ref={(el) => {
-                if (el) cardElRefs.current.set(img.id, el);
-                else cardElRefs.current.delete(img.id);
-              }}
-              style={{ "--card-index": idx } as React.CSSProperties}
-              draggable={heroDraggable}
-              onDragStart={(e) => handleHeroDragStart(e, img.id)}
-            >
-              <ImageCard
-                image={img}
-                layout="grid"
-                onExpand={() => setLightboxIndex(idx)}
-                onEditTags={() => setTagEditorImage(img)}
-                onRename={() => setRenameImage(img)}
-                onSaveName={(name) => updateImage(img.id, { originalName: name })}
-                onDelete={() => deleteImage(img.id)}
-                reorderMode={reorderMode}
-                dragOver={reorderMode && dragOverIndex === idx}
-                onDragStart={() => handleDragStart(idx)}
-                onDragEnter={() => handleDragEnter(idx)}
-                onDragEnd={handleDragEnd}
-                selectMode={selectMode}
-                selected={selectedIds.has(img.id)}
-                onToggleSelect={() => toggleSelected(img.id)}
-              />
-            </div>
-          ))}
-          {marquee && (
-            <div
-              className="pointer-events-none absolute rounded-[var(--radius-sm)] border border-accent bg-accent/15"
-              style={{
-                left: Math.min(marquee.x0, marquee.x1),
-                top: Math.min(marquee.y0, marquee.y1),
-                width: Math.abs(marquee.x1 - marquee.x0),
-                height: Math.abs(marquee.y1 - marquee.y0),
-              }}
-            />
-          )}
-        </div>
-      ) : (
-        <div ref={gridRef} onMouseDown={handleGridMouseDown} className="relative flex select-none flex-col gap-2">
-          {items.map((img, idx) => (
-            <div
-              key={img.id}
-              ref={(el) => {
-                if (el) cardElRefs.current.set(img.id, el);
-                else cardElRefs.current.delete(img.id);
-              }}
-              style={{ "--card-index": idx } as React.CSSProperties}
-              draggable={heroDraggable}
-              onDragStart={(e) => handleHeroDragStart(e, img.id)}
-            >
-              <ImageCard
-                image={img}
-                layout="list"
-                onExpand={() => setLightboxIndex(idx)}
-                onEditTags={() => setTagEditorImage(img)}
-                onRename={() => setRenameImage(img)}
-                onSaveName={(name) => updateImage(img.id, { originalName: name })}
-                onDelete={() => deleteImage(img.id)}
-                reorderMode={reorderMode}
-                dragOver={reorderMode && dragOverIndex === idx}
-                onDragStart={() => handleDragStart(idx)}
-                onDragEnter={() => handleDragEnter(idx)}
-                onDragEnd={handleDragEnd}
-                selectMode={selectMode}
-                selected={selectedIds.has(img.id)}
-                onToggleSelect={() => toggleSelected(img.id)}
-              />
-            </div>
-          ))}
-          {marquee && (
-            <div
-              className="pointer-events-none absolute rounded-[var(--radius-sm)] border border-accent bg-accent/15"
-              style={{
-                left: Math.min(marquee.x0, marquee.x1),
-                top: Math.min(marquee.y0, marquee.y1),
-                width: Math.abs(marquee.x1 - marquee.x0),
-                height: Math.abs(marquee.y1 - marquee.y0),
-              }}
-            />
-          )}
-        </div>
-      )}
+        <TagEditorDialog
+          image={tagEditorImage}
+          onClose={() => setTagEditorImage(null)}
+          onSave={(id, tags) => updateImage(id, { tags })}
+        />
 
-      {view !== "carousel" && !reorderMode && (
-        <Pagination page={page} pageSize={effectivePageSize} total={total} onPageChange={setPage} />
-      )}
+        <RenameImageDialog
+          image={renameImage}
+          onClose={() => setRenameImage(null)}
+          onSave={(id, originalName) => updateImage(id, { originalName })}
+        />
 
+        <BulkTagDialog
+          open={bulkTagOpen}
+          count={selectedIds.size}
+          onClose={() => setBulkTagOpen(false)}
+          onApply={handleBulkApply}
+        />
+
+        <BulkRemoveTagDialog
+          open={bulkRemoveOpen}
+          count={selectedIds.size}
+          availableTags={selectedTagsUnion}
+          onClose={() => setBulkRemoveOpen(false)}
+          onApply={handleBulkRemove}
+        />
+      </div>
+
+      {/* Activity log side panel */}
       <AnimatePresence>
-        {selectMode && selectedIds.size > 0 && (
+        {showActivityLog && (
           <motion.div
-            key="bulk-bar"
-            initial={{ y: 72, opacity: 0, scale: 0.92 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 72, opacity: 0, scale: 0.92 }}
-            transition={{ type: "spring", damping: 22, stiffness: 280 }}
-            className="fixed inset-x-2 bottom-6 z-40 flex justify-center sm:inset-x-0"
+            key="activity-log"
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 288, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            className="overflow-hidden"
           >
-            <div className="flex flex-wrap items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-border bg-surface-2 px-3 py-2.5 shadow-[var(--shadow-lg)] sm:gap-3 sm:px-4">
-              <AnimatePresence mode="wait">
-                <motion.span
-                  key={selectedIds.size}
-                  initial={{ y: -8, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: 8, opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="text-sm font-medium"
-                >
-                  {selectedIds.size} selected
-                </motion.span>
-              </AnimatePresence>
-              <Button size="sm" onClick={() => setBulkTagOpen(true)}>
-                <Tag className="size-4" /> Add tag
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setBulkRemoveOpen(true)}>
-                <Tags className="size-4" /> Remove tag
-              </Button>
-              <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={bulkDeleting}>
-                <Trash2 className="size-4" /> {bulkDeleting ? "Deleting…" : "Delete"}
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
-                <X className="size-4" /> Clear
-              </Button>
-            </div>
+            <ActivityLog onClose={() => setShowActivityLog(false)} />
           </motion.div>
         )}
       </AnimatePresence>
-
-      {lightboxIndex !== null && (
-        <Lightbox
-          images={items}
-          index={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-          onIndexChange={setLightboxIndex}
-          onEditTags={(img) => setTagEditorImage(img)}
-        />
-      )}
-
-      <TagEditorDialog
-        image={tagEditorImage}
-        onClose={() => setTagEditorImage(null)}
-        onSave={(id, tags) => updateImage(id, { tags })}
-      />
-
-      <RenameImageDialog
-        image={renameImage}
-        onClose={() => setRenameImage(null)}
-        onSave={async (id, originalName) => {
-          const ok = await updateImage(id, { originalName });
-          toast(ok ? "Image renamed." : "Couldn't rename image. Try again.", ok ? "success" : "error");
-          return ok;
-        }}
-      />
-
-      <BulkTagDialog
-        open={bulkTagOpen}
-        count={selectedIds.size}
-        onClose={() => setBulkTagOpen(false)}
-        onApply={handleBulkApply}
-      />
-
-      <BulkRemoveTagDialog
-        open={bulkRemoveOpen}
-        count={selectedIds.size}
-        availableTags={selectedTagsUnion}
-        onClose={() => setBulkRemoveOpen(false)}
-        onApply={handleBulkRemove}
-      />
 
       <ConfirmDialog
         open={confirmDeleteOpen}

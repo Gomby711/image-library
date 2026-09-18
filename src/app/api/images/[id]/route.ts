@@ -1,9 +1,13 @@
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { mutateDb, rememberTags } from "@/lib/db";
 import { withApiErrors } from "@/lib/api-error";
 import { computeReferenceName } from "@/lib/images";
-import { deleteImageFile } from "@/lib/blob";
-import { adjustBytes } from "@/lib/storage-tracker";
+import { deleteImageFile, deleteImageThumbs } from "@/lib/blob";
+import { deductBytes } from "@/lib/storage-tracker";
+import type { ActivityRecord } from "@/lib/types";
+
+const THUMB_WIDTHS = [480];
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withApiErrors(async () => {
@@ -44,17 +48,25 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       const idx = db.images.findIndex((img) => img.id === id);
       if (idx === -1) return null;
       const [image] = db.images.splice(idx, 1);
+      const entry: ActivityRecord = {
+        id: randomUUID(),
+        kind: "delete",
+        description: `Deleted ${image.originalName}`,
+        imageIds: [image.id],
+        createdAt: new Date().toISOString(),
+      };
+      db.activityLog.unshift(entry);
+      if (db.activityLog.length > 200) db.activityLog.length = 200;
       return image;
     });
 
     if (!removed) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    try {
-      await deleteImageFile(removed.filename);
-    } catch {
-      // file already gone — metadata removal still succeeds
-    }
-    await adjustBytes(-removed.size);
+    await Promise.allSettled([
+      deleteImageFile(removed.filename),
+      deleteImageThumbs(removed.id, THUMB_WIDTHS),
+      deductBytes(removed.size),
+    ]);
 
     return NextResponse.json({ ok: true });
   });
