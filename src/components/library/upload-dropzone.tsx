@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
+import { AnimatePresence, motion } from "framer-motion";
 import { AlertCircle, Check, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ACCEPT_ATTR } from "@/lib/images";
@@ -105,13 +106,42 @@ function UploadRow({ item }: { item: UploadProgressItem }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate">{item.name}</span>
-          {item.status === "done" ? (
-            <Check className="size-4 shrink-0 text-accent" />
-          ) : item.status === "error" ? (
-            <AlertCircle className="size-4 shrink-0 text-destructive" />
-          ) : (
-            <span className="shrink-0 text-xs text-muted-foreground">{item.progress}%</span>
-          )}
+          <AnimatePresence mode="wait">
+            {item.status === "done" ? (
+              <motion.span
+                key="done"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+                className="shrink-0"
+              >
+                <Check className="size-4 text-accent" />
+              </motion.span>
+            ) : item.status === "error" ? (
+              <motion.span
+                key="error"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.15 }}
+                className="shrink-0"
+              >
+                <AlertCircle className="size-4 text-destructive" />
+              </motion.span>
+            ) : (
+              <motion.span
+                key="progress"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="shrink-0 text-xs text-muted-foreground"
+              >
+                {item.progress}%
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
         <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
           <div

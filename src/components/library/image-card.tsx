@@ -195,7 +195,7 @@ export function ImageCard({
         {...dragProps}
         onClick={selectMode ? onToggleSelect : undefined}
         className={cn(
-          "card-fade-in flex items-center gap-4 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]",
+          "card-fade-in drop-target-base flex items-center gap-4 rounded-[var(--radius-md)] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]",
           reorderMode && "cursor-grab active:cursor-grabbing",
           selectMode && "cursor-pointer",
           selected && "ring-2 ring-accent",
@@ -270,7 +270,7 @@ export function ImageCard({
       onClick={selectMode ? onToggleSelect : undefined}
       {...dragProps}
       className={cn(
-        "card-fade-in group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-[box-shadow,border-color] hover:border-accent/40 hover:shadow-[var(--shadow-glow)]",
+        "card-fade-in drop-target-base group relative flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)] transition-[box-shadow,border-color] hover:border-accent/40 hover:shadow-[var(--shadow-glow)]",
         reorderMode && "cursor-grab active:cursor-grabbing",
         selectMode && "cursor-pointer",
         selected && "ring-2 ring-accent",
@@ -344,7 +344,7 @@ export function ImageCard({
       </div>
 
       {!reorderMode && !selectMode && (
-        <div className="flex items-center justify-end gap-1 border-t border-border px-2 py-1.5 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
+        <div className="flex items-center justify-end gap-1 border-t border-border px-2 py-1.5 sm:opacity-0 sm:transition-opacity sm:duration-[var(--duration-xs)] sm:ease-[var(--ease-out-quart)] sm:group-hover:opacity-100">
           <IconButton onClick={onRename} label="Rename"><Pencil className="size-4" /></IconButton>
           <IconButton onClick={onEditTags} label="Edit tags"><Tag className="size-4" /></IconButton>
           <IconButton onClick={() => downloadImage(image)} label="Download"><Download className="size-4" /></IconButton>

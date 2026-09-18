@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
+import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -162,21 +163,53 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 end-0 flex h-full w-10 items-center justify-center text-white/60 transition-colors hover:text-white"
+                  className="absolute inset-y-0 end-0 grid h-full w-10 place-items-center text-white/60 transition-colors hover:text-white"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  <span className="relative block size-4">
+                    <EyeOff
+                      className={cn(
+                        "absolute inset-0 size-4 transition-[opacity,transform] duration-150 ease-[var(--ease-out-quart)]",
+                        showPassword ? "opacity-100 scale-100" : "opacity-0 scale-90"
+                      )}
+                    />
+                    <Eye
+                      className={cn(
+                        "absolute inset-0 size-4 transition-[opacity,transform] duration-150 ease-[var(--ease-out-quart)]",
+                        showPassword ? "opacity-0 scale-90" : "opacity-100 scale-100"
+                      )}
+                    />
+                  </span>
                 </button>
               </div>
             </div>
 
-            {error && <p className={cn("login-field text-sm text-red-100")}>{error}</p>}
-
-            {locked && (
-              <p className="login-field rounded-[var(--radius-md)] border border-white/30 bg-white/10 px-3 py-2 text-sm text-white">
-                Locked out — try again in {formatRemaining(lockedMs)}
-              </p>
-            )}
+            <AnimatePresence mode="popLayout">
+              {error && (
+                <motion.p
+                  key="login-error"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
+                  className="text-sm text-red-100"
+                >
+                  {error}
+                </motion.p>
+              )}
+              {locked && (
+                <motion.p
+                  key="login-lockout"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2, ease: [0.25, 1, 0.5, 1] }}
+                  className="rounded-[var(--radius-md)] border border-white/30 bg-white/10 px-3 py-2 text-sm text-white"
+                >
+                  Locked out — try again in {formatRemaining(lockedMs)}
+                </motion.p>
+              )}
+            </AnimatePresence>
 
             <Button
               type="submit"

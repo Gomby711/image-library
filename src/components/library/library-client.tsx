@@ -17,7 +17,11 @@ import { BulkRemoveTagDialog } from "@/components/library/bulk-remove-tag-dialog
 import { CoverflowCarousel, type CoverflowSlide } from "@/components/ui/coverflow-carousel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/hooks/use-toast";
 import type { ImageRecord, PageSize, SortKey, ViewMode } from "@/lib/types";
+
+const FIRST_UPLOAD_KEY = "coverking:first-upload-celebrated";
 
 interface LibraryClientProps {
   hideUpload?: boolean;
@@ -65,6 +69,8 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   // selection instead of replacing it outright.
   const baseSelectionRef = React.useRef<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = React.useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
+  const toast = useToast();
 
   const effectivePageSize: PageSize = view === "carousel" || reorderMode ? "all" : pageSize;
   const effectiveSort: SortKey = reorderMode ? "custom" : sort;
@@ -103,6 +109,31 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   React.useEffect(() => {
     setPage(1);
   }, [search, sort, pageSize, lockedTag]);
+
+  // Celebrate the very first asset ever uploaded to an empty library — a
+  // rare, first-time moment (delight budget), gated so it fires once per
+  // browser rather than every time the grid happens to be empty.
+  const wasEmptyRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!loading) wasEmptyRef.current = items.length === 0;
+  }, [loading, items.length]);
+
+  const seenDoneUploadIds = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    const justDone = uploads.filter((u) => u.status === "done" && !seenDoneUploadIds.current.has(u.id));
+    if (justDone.length === 0) return;
+    justDone.forEach((u) => seenDoneUploadIds.current.add(u.id));
+    if (!wasEmptyRef.current) return;
+    try {
+      if (localStorage.getItem(FIRST_UPLOAD_KEY)) return;
+      localStorage.setItem(FIRST_UPLOAD_KEY, "1");
+    } catch {
+      // Private browsing or storage disabled — skip the one-time gate rather
+      // than block the celebration entirely.
+    }
+    wasEmptyRef.current = false;
+    toast("First asset added — your library is live.", "celebration");
+  }, [uploads, toast]);
 
   // Deleting everything on the last page (or bulk-deleting past the end of
   // the current page) can leave `page` pointing past the new, smaller page
@@ -287,6 +318,9 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     if (ok) {
       setSelectedIds(new Set());
       setSelectMode(false);
+      toast("Tag added to selected images.");
+    } else {
+      toast("Couldn't add tag. Try again.", "error");
     }
     return ok;
   }
@@ -296,20 +330,30 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     if (ok) {
       setSelectedIds(new Set());
       setSelectMode(false);
+      toast("Tag removed from selected images.");
+    } else {
+      toast("Couldn't remove tag. Try again.", "error");
     }
     return ok;
   }
 
-  async function handleBulkDelete() {
+  function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    setConfirmDeleteOpen(true);
+  }
+
+  async function confirmBulkDelete() {
     const count = selectedIds.size;
-    if (count === 0) return;
-    if (!window.confirm(`Delete ${count} selected image${count === 1 ? "" : "s"}? This can't be undone.`)) return;
     setBulkDeleting(true);
     const ok = await bulkDelete(Array.from(selectedIds));
     setBulkDeleting(false);
+    setConfirmDeleteOpen(false);
     if (ok) {
       setSelectedIds(new Set());
       setSelectMode(false);
+      toast(`Deleted ${count} image${count === 1 ? "" : "s"}.`);
+    } else {
+      toast("Couldn't delete the selected images. Try again.", "error");
     }
   }
 
@@ -596,7 +640,11 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
       <RenameImageDialog
         image={renameImage}
         onClose={() => setRenameImage(null)}
-        onSave={(id, originalName) => updateImage(id, { originalName })}
+        onSave={async (id, originalName) => {
+          const ok = await updateImage(id, { originalName });
+          toast(ok ? "Image renamed." : "Couldn't rename image. Try again.", ok ? "success" : "error");
+          return ok;
+        }}
       />
 
       <BulkTagDialog
@@ -612,6 +660,17 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
         availableTags={selectedTagsUnion}
         onClose={() => setBulkRemoveOpen(false)}
         onApply={handleBulkRemove}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title={`Delete ${selectedIds.size} image${selectedIds.size === 1 ? "" : "s"}?`}
+        description="This can't be undone."
+        confirmLabel="Delete"
+        destructive
+        pending={bulkDeleting}
+        onConfirm={confirmBulkDelete}
+        onCancel={() => setConfirmDeleteOpen(false)}
       />
     </div>
   );
