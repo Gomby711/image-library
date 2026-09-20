@@ -6,7 +6,6 @@ import gsap from "gsap";
 
 gsap.registerPlugin(useGSAP);
 
-// Duration of the source intro video in seconds
 const VIDEO_DURATION = 2.42;
 
 export function CovekingIntro() {
@@ -14,6 +13,21 @@ export function CovekingIntro() {
   const rootRef = React.useRef<HTMLDivElement>(null);
   const barRef = React.useRef<HTMLDivElement>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  // Force-play and set legacy inline attributes that React doesn't output —
+  // needed to suppress the native play button on iOS Safari and some Android
+  // browsers even when autoPlay + muted + playsInline are all set.
+  React.useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    // webkit-playsinline silences the iOS overlay play button on older WebKit
+    v.setAttribute("webkit-playsinline", "");
+    // x5-playsinline does the same for the WeChat/X5 browser on Android
+    v.setAttribute("x5-playsinline", "");
+    // If autoplay is blocked (rare edge-case on some browsers), skip the intro
+    // immediately so the app is never stuck behind an unplaying video.
+    v.play().catch(() => setGone(true));
+  }, []);
 
   useGSAP(
     () => {
@@ -37,7 +51,7 @@ export function CovekingIntro() {
         0
       );
 
-      // Fade out overlay just as the video ends, then remove from DOM
+      // Fade out and unmount just as the video ends
       tl.to(
         rootRef.current,
         {
@@ -63,26 +77,35 @@ export function CovekingIntro() {
         inset: 0,
         zIndex: 9999,
         overflow: "hidden",
+        // Fallback colour shown for the single frame before the video decodes
         background: "#021e48",
+        // Block all touch/pointer events so tapping the overlay never triggers
+        // browser-native video controls or the iOS play-button overlay
+        touchAction: "none",
       }}
     >
-      {/* The actual Coverking intro video — fills the full overlay */}
       <video
         ref={videoRef}
         src="/brand/coverking-intro.mp4"
         autoPlay
         muted
         playsInline
+        disablePictureInPicture
+        // Suppress the browser's own remote-playback (AirPlay / Cast) UI
+        {...{ disableremoteplayback: "" } as React.HTMLAttributes<HTMLVideoElement>}
         style={{
           position: "absolute",
           inset: 0,
           width: "100%",
           height: "100%",
           objectFit: "cover",
+          // No pointer events on the video itself — prevents any browser from
+          // showing the native overlay controls or play button on tap
+          pointerEvents: "none",
         }}
       />
 
-      {/* Loading progress bar pinned to the bottom edge */}
+      {/* Loading progress bar — bottom edge */}
       <div
         style={{
           position: "absolute",
@@ -92,6 +115,8 @@ export function CovekingIntro() {
           height: 3,
           background: "rgba(255,255,255,0.16)",
           zIndex: 1,
+          // Keep bar above the video but still non-interactive
+          pointerEvents: "none",
         }}
       >
         <div
