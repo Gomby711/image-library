@@ -6,43 +6,8 @@ import gsap from "gsap";
 
 gsap.registerPlugin(useGSAP);
 
+// Total intro duration before fade-out begins
 const ANIM_DURATION = 2.42;
-
-// Shared logo mask — applied to ONE parent container so chrome gradient
-// and sheen sweep share a single mask computation. When each element had
-// its own mask the sub-pixel edges never aligned exactly, producing a
-// visible rectangular "sticker outline" around the logo shape.
-const MASK: React.CSSProperties = {
-  WebkitMaskImage: "url(/brand/coverking-logo-white.png)",
-  WebkitMaskSize: "contain",
-  WebkitMaskRepeat: "no-repeat",
-  WebkitMaskPosition: "center",
-  maskImage: "url(/brand/coverking-logo-white.png)",
-  maskSize: "contain",
-  maskRepeat: "no-repeat",
-  maskPosition: "center",
-};
-
-// Classic polished-chrome look: white specular at top, silver mid, dark
-// shadow band, then a bright "horizon" recovery band and floor tint.
-// The alternating light-dark-light bands are what make chrome read as 3D.
-const CHROME =
-  "linear-gradient(175deg, " +
-  "#ffffff 0%, " +    // top: pure specular highlight
-  "#f4fbff 6%, " +
-  "#d4ecfa 18%, " +   // upper silver-blue
-  "#9cbdd8 32%, " +   // mid transition
-  "#ecf8ff 45%, " +   // chrome horizon reflection (bright band)
-  "#7090b0 57%, " +   // shadow band
-  "#4a6280 70%, " +   // deep shadow
-  "#6888a0 82%, " +   // slight recovery
-  "#a0c0dc 94%, " +
-  "#c4daf0 100%" +    // very bottom: floor/sky reflection tint
-  ")";
-
-// Sheen: narrow bright diagonal band, soft edges, sweeps left→right
-const SHEEN =
-  "linear-gradient(108deg, transparent 22%, rgba(255,255,255,0.05) 36%, rgba(255,255,255,0.88) 50%, rgba(255,255,255,0.05) 64%, transparent 78%)";
 
 export function CovekingIntro() {
   const [gone, setGone] = React.useState(false);
@@ -62,24 +27,62 @@ export function CovekingIntro() {
 
       const tl = gsap.timeline();
 
-      // Camera pull-back
-      tl.fromTo(sceneRef.current, { scale: 1.14 }, { scale: 1, duration: ANIM_DURATION, ease: "power2.out" }, 0);
+      // Camera pull-back: scene starts slightly zoomed in and eases to 1x
+      tl.fromTo(
+        sceneRef.current,
+        { scale: 1.14 },
+        { scale: 1, duration: ANIM_DURATION, ease: "power2.out" },
+        0
+      );
 
-      // Logo mount
-      tl.fromTo(logoWrapRef.current, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.45, ease: "power2.out" }, 0);
+      // Logo fades in from nothing over first 0.45s
+      tl.fromTo(
+        logoWrapRef.current,
+        { opacity: 0, scale: 0.96 },
+        { opacity: 1, scale: 1, duration: 0.45, ease: "power2.out" },
+        0
+      );
 
-      // Chrome sheen sweep — GSAP moves the sheen div (which lives inside
-      // the masked parent) so the sweep is inherently clipped to logo shape
-      tl.fromTo(sheenRef.current, { xPercent: -160 }, { xPercent: 160, duration: 0.76, ease: "power1.inOut" }, 0.38);
+      // Chrome sheen sweep diagonally across logo at t=0.35s
+      tl.fromTo(
+        sheenRef.current,
+        { xPercent: -160 },
+        { xPercent: 160, duration: 0.8, ease: "power1.inOut" },
+        0.35
+      );
 
-      // Floor reflection fade-in
-      tl.fromTo(reflectionRef.current, { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 0.15);
+      // Reflection fades in slightly after logo
+      tl.fromTo(
+        reflectionRef.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.55, ease: "power2.out" },
+        0.12
+      );
 
-      // Loading bar
-      tl.fromTo(barRef.current, { scaleX: 0 }, { scaleX: 1, duration: ANIM_DURATION, ease: "power1.inOut", transformOrigin: "0% 0%" }, 0);
+      // Loading bar fills across the exact animation duration
+      tl.fromTo(
+        barRef.current,
+        { scaleX: 0 },
+        {
+          scaleX: 1,
+          duration: ANIM_DURATION,
+          ease: "power1.inOut",
+          transformOrigin: "0% 0%",
+        },
+        0
+      );
 
-      // Fade out → unmount
-      tl.to(rootRef.current, { opacity: 0, duration: 0.35, ease: "power2.inOut", onComplete: () => setGone(true) }, ANIM_DURATION - 0.05);
+      // Fade out just as animation ends, then unmount
+      tl.to(
+        rootRef.current,
+        {
+          opacity: 0,
+          duration: 0.35,
+          ease: "power2.inOut",
+          onComplete: () => setGone(true),
+        },
+        ANIM_DURATION - 0.05
+      );
     },
     { scope: rootRef }
   );
@@ -99,7 +102,7 @@ export function CovekingIntro() {
         touchAction: "none",
       }}
     >
-      {/* Scene — camera pull-back target */}
+      {/* Scene wrapper — GSAP scale animates this for the camera pull-back */}
       <div
         ref={sceneRef}
         style={{
@@ -109,123 +112,148 @@ export function CovekingIntro() {
           alignItems: "center",
           justifyContent: "center",
           flexDirection: "column",
-          background: [
-            "radial-gradient(ellipse 55% 38% at 50% 0%, rgba(255,255,255,0.14) 0%, transparent 62%)",
-            "radial-gradient(ellipse 78% 62% at 50% 38%, #2594ec 0%, #1578d0 22%, #0b56a8 50%, #063878 74%, #021e48 100%)",
-          ].join(", "),
+          // Radial gradient background: vivid blue center → deep navy edges
+          background: `
+            radial-gradient(ellipse 55% 45% at 50% 0%, rgba(255,255,255,0.18) 0%, transparent 70%),
+            radial-gradient(ellipse 80% 60% at 50% 40%, #2390e8 0%, #1274cc 25%, #0a52a0 55%, #063878 78%, #021e48 100%)
+          `,
         }}
       >
-        {/* Floor ambient uplight */}
+        {/* Bottom floor ambient glow */}
         <div
           style={{
             position: "absolute",
             bottom: 0,
             left: "50%",
             transform: "translateX(-50%)",
-            width: "65%",
-            height: "32%",
+            width: "70%",
+            height: "35%",
             background:
-              "radial-gradient(ellipse 100% 55% at 50% 100%, rgba(80,170,255,0.2) 0%, transparent 70%)",
+              "radial-gradient(ellipse 100% 60% at 50% 100%, rgba(100,185,255,0.22) 0%, transparent 70%)",
             pointerEvents: "none",
           }}
         />
 
-        {/* Logo + reflection assembly */}
+        {/* Logo + reflection container */}
         <div
           style={{
             position: "relative",
-            width: "min(76vw, 500px)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
+            width: "min(72vw, 460px)",
           }}
         >
-          {/* Logo wrapper — GSAP opacity/scale target */}
-          <div ref={logoWrapRef} style={{ position: "relative", width: "100%", opacity: 0 }}>
-
+          {/* Chrome logo */}
+          <div
+            ref={logoWrapRef}
+            style={{
+              position: "relative",
+              width: "100%",
+              overflow: "hidden",
+            }}
+          >
             {/*
-             * Invisible <img> spacer: lets the browser set the correct intrinsic
-             * height from the actual image dimensions so no magic paddingBottom %.
-             */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/coverking-logo-white.png"
-              alt=""
-              style={{ width: "100%", display: "block", visibility: "hidden" }}
-            />
-
-            {/*
-             * Filter wrapper: drop-shadow() applied here, OUTSIDE the mask.
-             * Stacking four small-offset solid drop-shadows simulates the
-             * 3D letter extrusion (depth / thickness on the letterforms).
-             * The two blur-radius=0 shadows give the crisp hard edge of the
-             * extrusion; the wide glow shadows add the blue aura.
-             * This works correctly because the filter sees the child's masked
-             * alpha (logo silhouette) and casts all shadows from that shape.
+             * Chrome/metallic look: use the white logo as a mask over a
+             * silver-to-highlight gradient so it reads as polished metal.
              */}
             <div
               style={{
-                position: "absolute",
-                inset: 0,
-                filter: [
-                  "drop-shadow(0 0 28px rgba(60,160,255,0.7))",    // outer blue halo
-                  "drop-shadow(0 0 10px rgba(180,230,255,0.5))",   // inner glow
-                  "drop-shadow(1px 2px 0 #0a1628)",                // extrusion depth 1
-                  "drop-shadow(2px 3px 0 #070f1c)",                // extrusion depth 2
-                  "drop-shadow(3px 5px 0 #050c16)",                // extrusion depth 3
-                  "drop-shadow(4px 6px 0 #030a10)",                // extrusion depth 4
-                  "drop-shadow(0 14px 20px rgba(0,4,16,0.96))",    // ground shadow
-                ].join(" "),
+                width: "100%",
+                paddingBottom: "35%", // intrinsic ratio placeholder
+                position: "relative",
               }}
             >
-              {/*
-               * Chrome face container — mask is applied ONCE here.
-               * Because both the chrome gradient and the sheen are children
-               * of this element, they're composited together first and then
-               * the mask clips the joint result. One mask = no edge mismatch.
-               */}
-              <div style={{ position: "absolute", inset: 0, ...MASK }}>
-                {/* Chrome metallic gradient — light-dark-light chrome bands */}
-                <div style={{ position: "absolute", inset: 0, background: CHROME }} />
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  // Chrome gradient: bright top highlight → silver mid → blue-silver shadow
+                  background:
+                    "linear-gradient(160deg, #ffffff 0%, #d8eeff 18%, #b8d4ef 36%, #ffffff 50%, #9fbdd8 64%, #c8dff0 80%, #e8f4ff 100%)",
+                  // Mask the gradient to the logo shape
+                  WebkitMaskImage: "url(/brand/coverking-logo-white.png)",
+                  WebkitMaskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                  maskImage: "url(/brand/coverking-logo-white.png)",
+                  maskSize: "contain",
+                  maskRepeat: "no-repeat",
+                  maskPosition: "center",
+                  filter:
+                    "drop-shadow(0 0 24px rgba(100,185,255,0.7)) drop-shadow(0 2px 12px rgba(0,50,120,0.6)) brightness(1.08)",
+                }}
+              />
 
-                {/* Sheen sweep — clipped to logo by parent mask, no bleed */}
-                <div
-                  ref={sheenRef}
-                  style={{ position: "absolute", inset: 0, background: SHEEN }}
-                />
-              </div>
+              {/* Diagonal chrome sheen sweep — slides across the logo */}
+              <div
+                ref={sheenRef}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  // Wide diagonal band of bright light
+                  background:
+                    "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.75) 50%, transparent 70%)",
+                  // Clip to logo mask so the sheen only shows on the logo
+                  WebkitMaskImage: "url(/brand/coverking-logo-white.png)",
+                  WebkitMaskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                  maskImage: "url(/brand/coverking-logo-white.png)",
+                  maskSize: "contain",
+                  maskRepeat: "no-repeat",
+                  maskPosition: "center",
+                  pointerEvents: "none",
+                }}
+              />
             </div>
           </div>
 
-          {/* Floor reflection: flipped, blurred, faded img strip */}
+          {/* Floor reflection: flipped + faded + blurred copy of logo */}
           <div
             ref={reflectionRef}
             style={{
               width: "100%",
-              marginTop: 4,
-              overflow: "hidden",
-              // Show only a narrow strip at the very top of the flipped image
-              // (= the bottom edge of the logo, closest to the floor line)
-              height: "clamp(14px, 4vw, 32px)",
+              marginTop: 2,
               opacity: 0,
+              position: "relative",
+              overflow: "hidden",
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/coverking-logo-white.png"
-              alt=""
+            <div
               style={{
                 width: "100%",
-                display: "block",
-                transform: "scaleY(-1)",
-                transformOrigin: "top center",
-                filter: "blur(3px)",
-                opacity: 0.1,
-                // Fade the reflection out toward the bottom
-                WebkitMaskImage: "linear-gradient(to bottom, white 0%, transparent 80%)",
-                maskImage: "linear-gradient(to bottom, white 0%, transparent 80%)",
+                paddingBottom: "20%", // reflection is cropped shorter
+                position: "relative",
               }}
-            />
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background:
+                    "linear-gradient(160deg, #ffffff 0%, #d8eeff 18%, #b8d4ef 36%, #ffffff 50%, #9fbdd8 64%, #c8dff0 80%, #e8f4ff 100%)",
+                  WebkitMaskImage: `
+                    linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.18) 100%),
+                    url(/brand/coverking-logo-white.png)
+                  `,
+                  WebkitMaskSize: "100% 100%, contain",
+                  WebkitMaskRepeat: "no-repeat, no-repeat",
+                  WebkitMaskPosition: "center, center",
+                  WebkitMaskComposite: "source-in",
+                  maskImage: `
+                    linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.18) 100%),
+                    url(/brand/coverking-logo-white.png)
+                  `,
+                  maskSize: "100% 100%, contain",
+                  maskRepeat: "no-repeat, no-repeat",
+                  maskPosition: "center, center",
+                  maskComposite: "intersect",
+                  transform: "scaleY(-1)",
+                  filter: "blur(1.5px) brightness(0.5)",
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
