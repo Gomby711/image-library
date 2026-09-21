@@ -77,6 +77,8 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
   const baseSelectionRef = React.useRef<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = React.useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
+  const [deleteConfirmImage, setDeleteConfirmImage] = React.useState<ImageRecord | null>(null);
+  const [singleDeleting, setSingleDeleting] = React.useState(false);
   const toast = useToast();
 
   // Keyboard navigation within the grid
@@ -324,15 +326,12 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
         setLightboxIndex(focusedIndex);
       } else if (e.key === "Delete" && focusedIndex !== null && !selectMode) {
         const img = items[focusedIndex];
-        if (img && window.confirm(`Delete "${img.originalName}"?`)) {
-          deleteImage(img.id);
-          setFocusedIndex(null);
-        }
+        if (img) setDeleteConfirmImage(img);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [items, focusedIndex, view, lightboxIndex, selectMode, deleteImage]);
+  }, [items, focusedIndex, view, lightboxIndex, selectMode]);
 
   // Click outside grid clears focused index
   React.useEffect(() => {
@@ -387,6 +386,15 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     } else {
       toast("Couldn't delete the selected images. Try again.", "error");
     }
+  }
+
+  async function confirmSingleDelete() {
+    if (!deleteConfirmImage) return;
+    setSingleDeleting(true);
+    const ok = await deleteImage(deleteConfirmImage.id);
+    setSingleDeleting(false);
+    setDeleteConfirmImage(null);
+    if (!ok) toast("Couldn't delete the image. Try again.", "error");
   }
 
   async function handleBulkDownload() {
@@ -465,7 +473,7 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
     onEditTags: () => setTagEditorImage(img),
     onRename: () => setRenameImage(img),
     onSaveName: (name: string) => updateImage(img.id, { originalName: name }),
-    onDelete: () => deleteImage(img.id),
+    onDelete: () => setDeleteConfirmImage(img),
     reorderMode,
     dragOver: reorderMode && dragOverIndex === idx,
     onDragStart: () => handleDragStart(idx),
@@ -792,6 +800,17 @@ export function LibraryClient({ hideUpload = false, lockedTag = null }: LibraryC
         pending={bulkDeleting}
         onConfirm={confirmBulkDelete}
         onCancel={() => setConfirmDeleteOpen(false)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteConfirmImage}
+        title="Delete this image?"
+        description={`Are you sure you'd like to delete "${deleteConfirmImage?.originalName ?? ""}"? This can't be undone.`}
+        confirmLabel="Delete"
+        destructive
+        pending={singleDeleting}
+        onConfirm={confirmSingleDelete}
+        onCancel={() => setDeleteConfirmImage(null)}
       />
     </div>
   );

@@ -278,8 +278,9 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
 
       {/* Logo + text group */}
       <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-        {/* Logo wrapped in overflow:hidden for sheen containment */}
-        <div ref={logoWrapRef} style={{ position: "relative", overflow: "hidden", display: "block" }}>
+        {/* Logo — no overflow:hidden here so the blur glow doesn't get clipped
+            into a visible rectangle during the bloom-in animation */}
+        <div ref={logoWrapRef} style={{ position: "relative", display: "block" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             ref={logoRef}
@@ -288,15 +289,18 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
             style={{ width: "min(58vw, 340px)", height: "auto", display: "block", opacity: 0,
               filter: "drop-shadow(0 2px 24px rgba(0,0,0,0.25))" }}
           />
-          {/* Sheen overlay clipped to logo bounds */}
-          <div
-            ref={sheenRef}
-            style={{
-              position: "absolute", inset: 0,
-              background: "linear-gradient(108deg, transparent 20%, rgba(255,255,255,0.06) 38%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0.06) 62%, transparent 80%)",
-              pointerEvents: "none",
-            }}
-          />
+          {/* Sheen clipped in its own overflow wrapper so it stays inside the
+              logo bounds without clipping the logo's blur glow */}
+          <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+            <div
+              ref={sheenRef}
+              style={{
+                position: "absolute", inset: 0,
+                background: "linear-gradient(108deg, transparent 20%, rgba(255,255,255,0.06) 38%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0.06) 62%, transparent 80%)",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
         </div>
 
         {/* Divider */}
