@@ -91,10 +91,15 @@ export function useImages(filters: ImageFilters) {
 
           // 90-second hard timeout so a hung server request doesn't block the
           // loop forever and leave rows stuck in the uploading state.
+          // AbortSignal.timeout is Chrome 103+ / Safari 16+; fall back to no
+          // timeout on older browsers rather than crashing the upload.
+          const timeoutSignal = typeof AbortSignal.timeout === "function"
+            ? AbortSignal.timeout(90_000)
+            : undefined;
           const res = await fetch("/api/images", {
             method: "POST",
             body: form,
-            signal: AbortSignal.timeout(90_000),
+            signal: timeoutSignal,
           });
 
           if (res.ok) {
@@ -102,19 +107,24 @@ export function useImages(filters: ImageFilters) {
             try { rejected = (await res.json())?.rejected ?? []; } catch { /* ignore */ }
             const rejectedMap = new Map(rejected.map((r) => [r.name, r.reason]));
 
+            // Compute done/err IDs synchronously before setUploads — React
+            // state updaters run during render (async), so any push() inside
+            // the updater is invisible to code running after the setUploads()
+            // call, which would leave the dismiss Sets empty.
             const doneIds: string[] = [];
             const errIds: string[] = [];
+            for (const { id, file } of batch) {
+              if (rejectedMap.has(file.name)) errIds.push(id);
+              else doneIds.push(id);
+            }
             setUploads((prev) =>
               prev.map((u) => {
                 if (!batchIds.has(u.id)) return u;
                 const entry = batch.find((e) => e.id === u.id);
                 const reason = entry ? rejectedMap.get(entry.file.name) : undefined;
-                if (reason) {
-                  errIds.push(u.id);
-                  return { ...u, progress: 100, status: "error" as const, error: reason };
-                }
-                doneIds.push(u.id);
-                return { ...u, progress: 100, status: "done" as const };
+                return reason
+                  ? { ...u, progress: 100, status: "error" as const, error: reason }
+                  : { ...u, progress: 100, status: "done" as const };
               })
             );
             refresh();
@@ -142,7 +152,7 @@ export function useImages(filters: ImageFilters) {
             }, 8000);
           }
         } catch (err) {
-          const message = (err instanceof Error && err.name === "TimeoutError")
+          const message = (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError"))
             ? "Upload timed out — try fewer files at once"
             : "Network error";
           const ids = new Set(batch.map((e) => e.id));
