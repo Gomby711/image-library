@@ -298,31 +298,14 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
               flexShrink: 0,
             }}
           />
-          Anaheim, CA
+          Anaheim, CA Since 1986
           <span
             ref={dot2Ref}
-            style={{
-              display: "inline-block",
-              width: 3,
-              height: 3,
-              borderRadius: "50%",
-              background: "rgba(255,255,255,0.7)",
-              opacity: 0,
-              flexShrink: 0,
-            }}
+            style={{ display: "none" }}
           />
-          Since 1986
           <span
             ref={dot3Ref}
-            style={{
-              display: "inline-block",
-              width: 3,
-              height: 3,
-              borderRadius: "50%",
-              background: "rgba(255,255,255,0.7)",
-              opacity: 0,
-              flexShrink: 0,
-            }}
+            style={{ display: "none" }}
           />
         </p>
       </div>
