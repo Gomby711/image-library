@@ -26,6 +26,17 @@ function PageHero({
   const [uploading, setUploading] = React.useState(false);
   const [removing, setRemoving] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const heroRef = React.useRef<HTMLDivElement>(null);
+
+  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+    const el = heroRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    el.style.setProperty("--spot-x", `${x}%`);
+    el.style.setProperty("--spot-y", `${y}%`);
+  }
 
   const hasHero = !!page.heroImageId || !!page.heroUpload;
   const heroSrc = hasHero ? `/api/library-pages/${page.id}/hero` : null;
@@ -72,6 +83,10 @@ function PageHero({
 
   return (
     <div
+      ref={heroRef}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => heroRef.current?.classList.add("hero-spotlight-active")}
+      onMouseLeave={() => heroRef.current?.classList.remove("hero-spotlight-active")}
       onDragOver={(e) => {
         e.preventDefault();
         setDragActive(true);
@@ -109,8 +124,9 @@ function PageHero({
         )}
         <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+        <div className="hero-spotlight-glow absolute inset-0 z-[5]" />
 
-        <div className="relative flex h-full flex-col justify-end gap-3 p-6 sm:p-8">
+        <div className="relative z-10 flex h-full flex-col justify-end gap-3 p-6 sm:p-8">
           <span className="hero-line h-1 w-14 rounded-full" style={{ background: "var(--accent)" }} />
           <h1 className="hero-title text-3xl font-bold tracking-tight text-white sm:text-4xl">{page.name}</h1>
           <p className="hero-sub max-w-xl text-sm text-white/75 sm:text-base">
