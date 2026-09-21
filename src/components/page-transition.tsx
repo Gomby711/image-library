@@ -116,12 +116,12 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
         0.12
       );
 
-      // Logo blooms in — drop-shadow respects alpha so the glow hugs the logo
-      // shape instead of filling the rectangular bounding box like blur() does
+      // Logo blooms in — opacity+scale only; no filter so the PNG's solid
+      // background never gets brightened into visible edge lines
       tl.fromTo(
         logoRef.current,
-        { opacity: 0, scale: 0.88, filter: "drop-shadow(0 0 22px rgba(255,255,255,0.95)) brightness(2.5)" },
-        { opacity: 1, scale: 1, filter: "drop-shadow(0 2px 24px rgba(0,0,0,0.25)) brightness(1)", duration: 0.7, ease: "power3.out" },
+        { opacity: 0, scale: 0.88 },
+        { opacity: 1, scale: 1, duration: 0.7, ease: "power3.out" },
         0.08
       );
 
@@ -287,8 +287,7 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
             ref={logoRef}
             src="/brand/coverking-logo-white.png"
             alt="Coverking"
-            style={{ width: "min(58vw, 340px)", height: "auto", display: "block", opacity: 0,
-              filter: "drop-shadow(0 2px 24px rgba(0,0,0,0.25))" }}
+            style={{ width: "min(58vw, 340px)", height: "auto", display: "block", opacity: 0 }}
           />
           {/* Sheen clipped in its own overflow wrapper so it stays inside the
               logo bounds without clipping the logo's blur glow */}
