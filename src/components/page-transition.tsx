@@ -116,11 +116,12 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
         0.12
       );
 
-      // Logo blooms in
+      // Logo blooms in — drop-shadow respects alpha so the glow hugs the logo
+      // shape instead of filling the rectangular bounding box like blur() does
       tl.fromTo(
         logoRef.current,
-        { opacity: 0, scale: 0.88, filter: "blur(14px) brightness(3)" },
-        { opacity: 1, scale: 1, filter: "blur(0px) brightness(1)", duration: 0.7, ease: "power3.out" },
+        { opacity: 0, scale: 0.88, filter: "drop-shadow(0 0 22px rgba(255,255,255,0.95)) brightness(2.5)" },
+        { opacity: 1, scale: 1, filter: "drop-shadow(0 2px 24px rgba(0,0,0,0.25)) brightness(1)", duration: 0.7, ease: "power3.out" },
         0.08
       );
 
