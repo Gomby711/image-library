@@ -68,9 +68,7 @@ export function useImages(filters: ImageFilters) {
 
       const BATCH_SIZE = 10;
       const batchStamp = `${Date.now()}-${Math.random()}`;
-      // Stable id→file entries for the whole selection
       const entries = files.map((file, i) => ({ id: `${batchStamp}-${i}`, file }));
-      const allIds = entries.map((e) => e.id);
 
       // Register every file in the UI immediately so all progress rows appear.
       setUploads((prev) => [
@@ -78,16 +76,12 @@ export function useImages(filters: ImageFilters) {
         ...entries.map(({ id, file }) => ({ id, name: file.name, progress: 0, status: "uploading" as const })),
       ]);
 
-      // Send in sequential batches of BATCH_SIZE so each batch is one server
-      // request and one DB write — keeps the server well within its timeout
-      // and avoids KV write contention regardless of how many files are dropped.
+      // Send in sequential batches of BATCH_SIZE — one server request and one
+      // DB write per batch. Each batch handles its own dismiss timers so that
+      // an earlier batch's rows clear even if a later one is still in-flight.
       for (let i = 0; i < entries.length; i += BATCH_SIZE) {
         const batch = entries.slice(i, i + BATCH_SIZE);
-        const batchIds = batch.map((e) => e.id);
-
-        setUploads((prev) =>
-          prev.map((u) => (batchIds.includes(u.id) ? { ...u, progress: 50 } : u))
-        );
+        const batchIds = new Set(batch.map((e) => e.id));
 
         try {
           const form = new FormData();
@@ -95,49 +89,73 @@ export function useImages(filters: ImageFilters) {
           if (opts?.folderId) form.append("folderId", opts.folderId);
           if (opts?.tags?.length) form.append("tags", opts.tags.join(","));
 
-          const res = await fetch("/api/images", { method: "POST", body: form });
+          // 90-second hard timeout so a hung server request doesn't block the
+          // loop forever and leave rows stuck in the uploading state.
+          const res = await fetch("/api/images", {
+            method: "POST",
+            body: form,
+            signal: AbortSignal.timeout(90_000),
+          });
 
           if (res.ok) {
             let rejected: { name: string; reason: string }[] = [];
             try { rejected = (await res.json())?.rejected ?? []; } catch { /* ignore */ }
             const rejectedMap = new Map(rejected.map((r) => [r.name, r.reason]));
 
+            const doneIds: string[] = [];
+            const errIds: string[] = [];
             setUploads((prev) =>
               prev.map((u) => {
-                if (!batchIds.includes(u.id)) return u;
-                const reason = rejectedMap.get(batch.find((e) => e.id === u.id)?.file.name ?? "");
-                return reason
-                  ? { ...u, progress: 100, status: "error" as const, error: reason }
-                  : { ...u, progress: 100, status: "done" as const };
+                if (!batchIds.has(u.id)) return u;
+                const entry = batch.find((e) => e.id === u.id);
+                const reason = entry ? rejectedMap.get(entry.file.name) : undefined;
+                if (reason) {
+                  errIds.push(u.id);
+                  return { ...u, progress: 100, status: "error" as const, error: reason };
+                }
+                doneIds.push(u.id);
+                return { ...u, progress: 100, status: "done" as const };
               })
             );
             refresh();
+            // Dismiss done rows 1.8 s after this batch completes; keep errors
+            // visible for 8 s so the user can read them.
+            const doneSet = new Set(doneIds);
+            const errSet = new Set(errIds);
+            setTimeout(() => {
+              setUploads((prev) => prev.filter((u) => !doneSet.has(u.id)));
+            }, 1800);
+            setTimeout(() => {
+              setUploads((prev) => prev.filter((u) => !errSet.has(u.id)));
+            }, 8000);
           } else {
             let message = "Upload failed";
             try { message = (await res.json())?.error ?? message; } catch { /* ignore */ }
+            const ids = new Set(batch.map((e) => e.id));
             setUploads((prev) =>
               prev.map((u) =>
-                batchIds.includes(u.id) ? { ...u, status: "error" as const, error: message } : u
+                ids.has(u.id) ? { ...u, progress: 100, status: "error" as const, error: message } : u
               )
             );
+            setTimeout(() => {
+              setUploads((prev) => prev.filter((u) => !ids.has(u.id)));
+            }, 8000);
           }
-        } catch {
+        } catch (err) {
+          const message = (err instanceof Error && err.name === "TimeoutError")
+            ? "Upload timed out — try fewer files at once"
+            : "Network error";
+          const ids = new Set(batch.map((e) => e.id));
           setUploads((prev) =>
             prev.map((u) =>
-              batchIds.includes(u.id) ? { ...u, status: "error" as const, error: "Network error" } : u
+              ids.has(u.id) ? { ...u, progress: 100, status: "error" as const, error: message } : u
             )
           );
+          setTimeout(() => {
+            setUploads((prev) => prev.filter((u) => !ids.has(u.id)));
+          }, 8000);
         }
       }
-
-      // Dismiss done rows shortly after the last batch finishes; keep errors
-      // visible long enough for the user to read them.
-      setTimeout(() => {
-        setUploads((prev) => prev.filter((u) => !allIds.includes(u.id) || u.status === "error"));
-      }, 1800);
-      setTimeout(() => {
-        setUploads((prev) => prev.filter((u) => !allIds.includes(u.id)));
-      }, 8000);
     },
     [refresh]
   );
