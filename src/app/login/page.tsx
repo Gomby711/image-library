@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PageTransition } from "@/components/page-transition";
 
 gsap.registerPlugin(useGSAP);
 
@@ -28,6 +29,7 @@ export default function LoginPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [lockedMs, setLockedMs] = React.useState(0);
+  const [transitioning, setTransitioning] = React.useState(false);
 
   useGSAP(
     () => {
@@ -77,6 +79,7 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
+        setTransitioning(true);
         router.push("/");
         router.refresh();
         return;
@@ -102,6 +105,8 @@ export default function LoginPage() {
   }
 
   return (
+    <>
+    {transitioning && <PageTransition persist />}
     <div ref={containerRef} className="grid min-h-screen w-full md:grid-cols-[1.1fr_1fr]">
       <div className="login-visual relative hidden overflow-hidden bg-surface md:block">
         <img
@@ -223,5 +228,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
