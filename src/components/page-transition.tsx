@@ -6,11 +6,9 @@ import gsap from "gsap";
 
 gsap.registerPlugin(useGSAP);
 
-// Total animation duration — loading bar fills over this span
-const TOTAL = 2.6;
+const TOTAL = 2.5;
 
 interface PageTransitionProps {
-  /** When true, the overlay stays up indefinitely (caller controls dismiss) */
   persist?: boolean;
   onDone?: () => void;
 }
@@ -18,15 +16,17 @@ interface PageTransitionProps {
 export function PageTransition({ persist = false, onDone }: PageTransitionProps) {
   const [gone, setGone] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const overlayRef = React.useRef<HTMLDivElement>(null);
   const logoRef = React.useRef<HTMLImageElement>(null);
+  const dividerRef = React.useRef<HTMLDivElement>(null);
+  const taglineRef = React.useRef<HTMLParagraphElement>(null);
   const barFillRef = React.useRef<HTMLDivElement>(null);
   const streak1Ref = React.useRef<HTMLDivElement>(null);
   const streak2Ref = React.useRef<HTMLDivElement>(null);
-  const streak3Ref = React.useRef<HTMLDivElement>(null);
-  const topLineRef = React.useRef<HTMLDivElement>(null);
-  const bottomLineRef = React.useRef<HTMLDivElement>(null);
-  const glowRef = React.useRef<HTMLDivElement>(null);
-  const taglineRef = React.useRef<HTMLParagraphElement>(null);
+  const vignRef = React.useRef<HTMLDivElement>(null);
+  const dot1Ref = React.useRef<HTMLSpanElement>(null);
+  const dot2Ref = React.useRef<HTMLSpanElement>(null);
+  const dot3Ref = React.useRef<HTMLSpanElement>(null);
 
   useGSAP(
     () => {
@@ -38,88 +38,109 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
 
       const tl = gsap.timeline();
 
-      // ── 0.00s  Background glow pulses in ──────────────────────────────────
+      // Flash of lighter blue on power-on
       tl.fromTo(
-        glowRef.current,
-        { opacity: 0, scale: 0.6 },
-        { opacity: 1, scale: 1, duration: 0.55, ease: "power3.out" },
+        overlayRef.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.06, yoyo: true, repeat: 1, ease: "none" },
         0
       );
 
-      // ── 0.05s  Top & bottom accent lines expand outward from center ───────
+      // Vignette deepens in
       tl.fromTo(
-        [topLineRef.current, bottomLineRef.current],
-        { scaleX: 0 },
-        { scaleX: 1, duration: 0.4, ease: "power3.out", transformOrigin: "50% 50%", stagger: 0.06 },
-        0.05
+        vignRef.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.5, ease: "power2.out" },
+        0
       );
 
-      // ── 0.10s  Logo scales in from center with blue bloom ─────────────────
+      // Logo blooms in — blur clears as it scales to 1
       tl.fromTo(
         logoRef.current,
-        { opacity: 0, scale: 0.82, filter: "blur(12px) brightness(2.5)" },
-        { opacity: 1, scale: 1, filter: "blur(0px) brightness(1)", duration: 0.65, ease: "power3.out" },
-        0.1
+        { opacity: 0, scale: 0.88, filter: "blur(14px) brightness(3)" },
+        {
+          opacity: 1,
+          scale: 1,
+          filter: "blur(0px) brightness(1)",
+          duration: 0.7,
+          ease: "power3.out",
+        },
+        0.08
       );
 
-      // ── 0.55s  Tagline slides up ──────────────────────────────────────────
+      // Divider line expands from center
+      tl.fromTo(
+        dividerRef.current,
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.38, ease: "power3.out", transformOrigin: "50% 50%" },
+        0.5
+      );
+
+      // Tagline rises
       tl.fromTo(
         taglineRef.current,
-        { opacity: 0, y: 10 },
+        { opacity: 0, y: 8 },
         { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" },
-        0.55
+        0.68
       );
 
-      // ── 0.40s  Speed-line streaks sweep left→right ────────────────────────
-      const streaks = [streak1Ref.current, streak2Ref.current, streak3Ref.current];
+      // Dot separators stagger in
       tl.fromTo(
-        streaks,
-        { xPercent: -110, opacity: 0 },
+        [dot1Ref.current, dot2Ref.current, dot3Ref.current],
+        { opacity: 0, scale: 0 },
+        { opacity: 1, scale: 1, duration: 0.25, stagger: 0.08, ease: "back.out(2)" },
+        0.76
+      );
+
+      // Streak 1 — wide fast sweep
+      tl.fromTo(
+        streak1Ref.current,
+        { xPercent: -120, opacity: 0 },
         {
-          xPercent: 110,
+          xPercent: 120,
           opacity: 1,
-          duration: 0.55,
+          duration: 0.5,
           ease: "power2.inOut",
-          stagger: 0.08,
-          onComplete: () => {
-            gsap.set(streaks, { opacity: 0 });
-          },
+          onStart: () => gsap.set(streak1Ref.current, { opacity: 1 }),
+          onComplete: () => gsap.set(streak1Ref.current, { opacity: 0 }),
         },
-        0.4
+        0.42
       );
 
-      // Second streak pass — slightly later, different feel
+      // Streak 2 — narrower, offset timing
       tl.fromTo(
-        [streak1Ref.current, streak3Ref.current],
-        { xPercent: -110, opacity: 0 },
+        streak2Ref.current,
+        { xPercent: -120, opacity: 0 },
         {
-          xPercent: 110,
-          opacity: 0.6,
-          duration: 0.48,
+          xPercent: 120,
+          opacity: 0.7,
+          duration: 0.44,
           ease: "power2.inOut",
-          stagger: 0.1,
-          onComplete: () => {
-            gsap.set([streak1Ref.current, streak3Ref.current], { opacity: 0 });
-          },
+          onStart: () => gsap.set(streak2Ref.current, { opacity: 0.7 }),
+          onComplete: () => gsap.set(streak2Ref.current, { opacity: 0 }),
         },
-        1.1
+        0.54
       );
 
-      // ── 0.00s  Loading bar fills over full duration ───────────────────────
+      // Loading bar
       tl.fromTo(
         barFillRef.current,
         { scaleX: 0 },
-        { scaleX: 1, duration: TOTAL, ease: "power1.inOut", transformOrigin: "0% 0%" },
+        {
+          scaleX: 1,
+          duration: TOTAL,
+          ease: "power1.inOut",
+          transformOrigin: "0% 0%",
+        },
         0
       );
 
       if (!persist) {
-        // ── Fade out entire overlay ───────────────────────────────────────
         tl.to(
           rootRef.current,
           {
             opacity: 0,
-            duration: 0.38,
+            duration: 0.4,
             ease: "power2.inOut",
             onComplete: () => {
               setGone(true);
@@ -149,70 +170,47 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        background: "#030508",
-        backgroundImage: [
-          "linear-gradient(rgba(0,130,201,0.04) 1px, transparent 1px)",
-          "linear-gradient(90deg, rgba(0,130,201,0.04) 1px, transparent 1px)",
-        ].join(", "),
-        backgroundSize: "48px 48px",
+        // Coverking blue is the primary background
+        background: "linear-gradient(160deg, #0093e0 0%, #0082c9 45%, #005fa3 100%)",
       }}
     >
-      {/* Radial ambient glow behind the logo */}
+      {/* Power-on flash overlay — slightly lighter blue */}
       <div
-        ref={glowRef}
+        ref={overlayRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "#22aaee",
+          opacity: 0,
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Radial vignette — darkens edges for depth */}
+      <div
+        ref={vignRef}
         style={{
           position: "absolute",
           inset: 0,
           background:
-            "radial-gradient(ellipse 70% 55% at 50% 50%, rgba(0,130,201,0.18) 0%, rgba(0,130,201,0.06) 40%, transparent 70%)",
+            "radial-gradient(ellipse 80% 80% at 50% 50%, transparent 30%, rgba(0,30,70,0.55) 100%)",
           pointerEvents: "none",
+          opacity: 0,
         }}
       />
 
-      {/* Top accent line */}
-      <div
-        ref={topLineRef}
-        style={{
-          position: "absolute",
-          top: "calc(50% - 90px)",
-          left: 0,
-          right: 0,
-          height: 1,
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(0,130,201,0.35) 20%, rgba(0,130,201,0.7) 50%, rgba(0,130,201,0.35) 80%, transparent 100%)",
-          boxShadow: "0 0 8px rgba(0,130,201,0.5)",
-          pointerEvents: "none",
-        }}
-      />
-
-      {/* Bottom accent line */}
-      <div
-        ref={bottomLineRef}
-        style={{
-          position: "absolute",
-          top: "calc(50% + 90px)",
-          left: 0,
-          right: 0,
-          height: 1,
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(0,130,201,0.35) 20%, rgba(0,130,201,0.7) 50%, rgba(0,130,201,0.35) 80%, transparent 100%)",
-          boxShadow: "0 0 8px rgba(0,130,201,0.5)",
-          pointerEvents: "none",
-        }}
-      />
-
-      {/* Speed-line streaks */}
+      {/* Horizontal speed streaks */}
       <div
         ref={streak1Ref}
         style={{
           position: "absolute",
-          top: "calc(50% - 52px)",
+          top: "calc(50% - 58px)",
           left: 0,
           right: 0,
-          height: 2,
+          height: 3,
           background:
-            "linear-gradient(90deg, transparent 0%, rgba(0,130,201,0) 5%, rgba(0,130,201,0.9) 30%, rgba(120,200,255,1) 50%, rgba(0,130,201,0.9) 70%, rgba(0,130,201,0) 95%, transparent 100%)",
-          boxShadow: "0 0 16px rgba(0,130,201,0.9), 0 0 6px #0082c9",
+            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0) 5%, rgba(255,255,255,0.85) 35%, rgba(255,255,255,1) 50%, rgba(255,255,255,0.85) 65%, rgba(255,255,255,0) 95%, transparent 100%)",
+          boxShadow: "0 0 18px rgba(255,255,255,0.7), 0 0 6px rgba(255,255,255,0.9)",
           opacity: 0,
           pointerEvents: "none",
         }}
@@ -221,69 +219,116 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
         ref={streak2Ref}
         style={{
           position: "absolute",
-          top: "calc(50% - 4px)",
-          left: 0,
-          right: 0,
-          height: 1,
-          background:
-            "linear-gradient(90deg, transparent 0%, rgba(0,130,201,0) 5%, rgba(0,130,201,0.5) 35%, rgba(120,200,255,0.9) 50%, rgba(0,130,201,0.5) 65%, rgba(0,130,201,0) 95%, transparent 100%)",
-          boxShadow: "0 0 10px rgba(0,130,201,0.6)",
-          opacity: 0,
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        ref={streak3Ref}
-        style={{
-          position: "absolute",
-          top: "calc(50% + 44px)",
+          top: "calc(50% + 48px)",
           left: 0,
           right: 0,
           height: 2,
           background:
-            "linear-gradient(90deg, transparent 0%, rgba(0,130,201,0) 5%, rgba(0,130,201,0.8) 28%, rgba(120,200,255,0.95) 50%, rgba(0,130,201,0.8) 72%, rgba(0,130,201,0) 95%, transparent 100%)",
-          boxShadow: "0 0 14px rgba(0,130,201,0.8), 0 0 5px #0082c9",
+            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0) 8%, rgba(255,255,255,0.6) 38%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.6) 62%, rgba(255,255,255,0) 92%, transparent 100%)",
+          boxShadow: "0 0 12px rgba(255,255,255,0.5)",
           opacity: 0,
           pointerEvents: "none",
         }}
       />
 
-      {/* Logo */}
-      <div style={{ position: "relative", zIndex: 1 }}>
+      {/* Logo + text group */}
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={logoRef}
           src="/brand/coverking-logo-white.png"
           alt="Coverking"
           style={{
-            width: "min(56vw, 320px)",
+            width: "min(58vw, 340px)",
             height: "auto",
             display: "block",
             opacity: 0,
-            filter: "drop-shadow(0 0 22px rgba(0,130,201,0.6)) drop-shadow(0 0 8px rgba(0,130,201,0.4))",
+            filter: "drop-shadow(0 2px 24px rgba(0,0,0,0.25))",
           }}
         />
 
-        {/* Tagline under logo */}
+        {/* Thin white divider line */}
+        <div
+          ref={dividerRef}
+          style={{
+            width: "min(58vw, 340px)",
+            height: 1,
+            marginTop: 16,
+            background:
+              "linear-gradient(90deg, transparent, rgba(255,255,255,0.6) 20%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.6) 80%, transparent)",
+          }}
+        />
+
+        {/* Tagline */}
         <p
           ref={taglineRef}
           style={{
-            marginTop: 14,
-            textAlign: "center",
+            marginTop: 12,
             fontFamily: "var(--font-sans), Roboto, sans-serif",
             fontWeight: 500,
-            fontSize: "clamp(10px, 2vw, 13px)",
-            letterSpacing: "0.22em",
+            fontSize: "clamp(9px, 1.8vw, 12px)",
+            letterSpacing: "0.28em",
             textTransform: "uppercase",
-            color: "rgba(0,130,201,0.85)",
+            color: "rgba(255,255,255,0.88)",
             opacity: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            whiteSpace: "nowrap",
           }}
         >
-          Premium Vehicle Covers
+          Car Covers
+          <span
+            ref={dot1Ref}
+            style={{
+              display: "inline-block",
+              width: 3,
+              height: 3,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.7)",
+              opacity: 0,
+              flexShrink: 0,
+            }}
+          />
+          Seat Covers
+          <span
+            ref={dot2Ref}
+            style={{
+              display: "inline-block",
+              width: 3,
+              height: 3,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.7)",
+              opacity: 0,
+              flexShrink: 0,
+            }}
+          />
+          Floor Mats
+          <span
+            ref={dot3Ref}
+            style={{
+              display: "inline-block",
+              width: 3,
+              height: 3,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.7)",
+              opacity: 0,
+              flexShrink: 0,
+            }}
+          />
+          &amp; More
         </p>
       </div>
 
-      {/* Loading bar */}
+      {/* Loading bar — white on blue */}
       <div
         style={{
           position: "absolute",
@@ -291,7 +336,7 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
           left: 0,
           right: 0,
           height: 3,
-          background: "rgba(0,130,201,0.12)",
+          background: "rgba(255,255,255,0.15)",
           pointerEvents: "none",
         }}
       >
@@ -302,8 +347,8 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
             transform: "scaleX(0)",
             transformOrigin: "left",
             background:
-              "linear-gradient(90deg, rgba(0,60,120,0.9) 0%, #0082c9 35%, rgba(100,185,255,0.95) 50%, #0082c9 65%, rgba(0,60,120,0.9) 100%)",
-            boxShadow: "0 0 12px rgba(0,130,201,0.9), 0 0 4px #0082c9",
+              "linear-gradient(90deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,1) 40%, rgba(200,235,255,1) 50%, rgba(255,255,255,1) 60%, rgba(255,255,255,0.7) 100%)",
+            boxShadow: "0 0 10px rgba(255,255,255,0.8), 0 0 4px rgba(255,255,255,0.9)",
           }}
         />
       </div>
