@@ -285,7 +285,7 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
             whiteSpace: "nowrap",
           }}
         >
-          Car Covers
+          Family Owned
           <span
             ref={dot1Ref}
             style={{
@@ -298,7 +298,7 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
               flexShrink: 0,
             }}
           />
-          Seat Covers
+          Anaheim, CA
           <span
             ref={dot2Ref}
             style={{
@@ -311,7 +311,7 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
               flexShrink: 0,
             }}
           />
-          Floor Mats
+          Since 1986
           <span
             ref={dot3Ref}
             style={{
@@ -324,7 +324,6 @@ export function PageTransition({ persist = false, onDone }: PageTransitionProps)
               flexShrink: 0,
             }}
           />
-          &amp; More
         </p>
       </div>
 
