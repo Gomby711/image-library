@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { AlertCircle, Check, UploadCloud } from "lucide-react";
+import { AlertCircle, Check, Loader2, UploadCloud } from "lucide-react";
 import { ACCEPT_ATTR } from "@/lib/images";
 import { cn } from "@/lib/utils";
 import type { UploadProgressItem } from "@/hooks/use-images";
@@ -106,42 +106,51 @@ function UploadRow({ item }: { item: UploadProgressItem }) {
 
   const isDone = item.status === "done";
   const isError = item.status === "error";
+  const isUploading = item.status === "uploading";
 
   return (
     <div className="flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-surface px-3 py-2 text-sm">
-      {/* SVG progress ring */}
+      {/* SVG progress ring / spinner */}
       <div className="relative shrink-0">
-        <svg width="36" height="36" viewBox="0 0 36 36" className="-rotate-90">
-          <circle
-            cx="18" cy="18" r={RING_R}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="3"
-            className="text-surface-2"
-          />
-          <circle
-            ref={progressRef}
-            cx="18" cy="18" r={RING_R}
-            fill="none"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeDasharray={RING_C}
-            strokeDashoffset={RING_C}
-            className={cn(
-              "transition-none",
-              isError ? "text-destructive stroke-destructive" : "stroke-accent"
-            )}
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          {isDone ? (
-            <Check className="size-3.5 text-accent" />
-          ) : isError ? (
-            <AlertCircle className="size-3 text-destructive" />
-          ) : (
-            <span className="text-[9px] font-semibold text-muted-foreground leading-none">{item.progress}</span>
-          )}
-        </div>
+        {isUploading ? (
+          /* Indeterminate spinner — Loader2 spins while the fetch is in-flight
+             so users can see activity even though fetch has no per-byte progress. */
+          <div className="flex size-9 items-center justify-center">
+            <Loader2 className="size-5 animate-spin text-accent" />
+          </div>
+        ) : (
+          <>
+            <svg width="36" height="36" viewBox="0 0 36 36" className="-rotate-90">
+              <circle
+                cx="18" cy="18" r={RING_R}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                className="text-surface-2"
+              />
+              <circle
+                ref={progressRef}
+                cx="18" cy="18" r={RING_R}
+                fill="none"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={RING_C}
+                strokeDashoffset={RING_C}
+                className={cn(
+                  "transition-none",
+                  isError ? "text-destructive stroke-destructive" : "stroke-accent"
+                )}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              {isDone ? (
+                <Check className="size-3.5 text-accent" />
+              ) : (
+                <AlertCircle className="size-3 text-destructive" />
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="min-w-0 flex-1">
