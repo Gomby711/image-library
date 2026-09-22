@@ -38,7 +38,20 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags, on
   useGSAP(
     () => {
       gsap.from(containerRef.current, { opacity: 0, duration: 0.2 });
-      gsap.fromTo(imgRef.current, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" });
+      gsap.fromTo(
+        imgRef.current,
+        { opacity: 0, scale: 0.95 },
+        {
+          opacity: 1,
+          scale: 1,
+          duration: 0.3,
+          ease: "power2.out",
+          // Remove inline transform/opacity after the animation so the img is
+          // governed purely by CSS again — stale GSAP inline transforms can
+          // mis-anchor the image in certain flex layouts.
+          onComplete: () => gsap.set(imgRef.current, { clearProps: "transform,opacity" }),
+        }
+      );
     },
     { dependencies: [index], scope: containerRef }
   );
@@ -197,7 +210,8 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags, on
           </div>
         </div>
 
-        {/* Image area */}
+        {/* Image area — uses dvh so height is always the visible viewport even
+            on mobile browsers where the address bar shrinks/grows. */}
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-4 pb-2"
           onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
         >
@@ -221,8 +235,10 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags, on
               <img
                 src={fileUrl(image, { width: LIGHTBOX_WIDTH })}
                 alt={image.originalName}
+                width={image.width || undefined}
+                height={image.height || undefined}
                 draggable={false}
-                className="block h-auto max-h-[calc(100vh-200px)] w-auto max-w-full"
+                className="block h-auto max-h-[calc(100dvh-12rem)] w-auto max-w-full"
               />
               <div
                 className="absolute inset-y-0 left-0 overflow-hidden"
@@ -258,6 +274,11 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags, on
               ref={imgRef}
               src={fileUrl(image, { width: LIGHTBOX_WIDTH })}
               alt={image.originalName}
+              // width/height tell the browser the intrinsic aspect ratio before
+              // the image finishes downloading — prevents layout jump that
+              // misaligns the GSAP entrance animation.
+              width={image.width || undefined}
+              height={image.height || undefined}
               draggable={false}
               onError={(e) => {
                 const el = e.currentTarget;
@@ -265,7 +286,7 @@ export function Lightbox({ images, index, onClose, onIndexChange, onEditTags, on
                 el.dataset.fallback = "1";
                 el.src = fileUrl(image);
               }}
-              className="block h-auto max-h-full w-auto max-w-full rounded-[var(--radius-md)] object-contain shadow-[var(--shadow-lg)]"
+              className="mx-auto my-auto block h-auto max-h-[calc(100dvh-12rem)] w-auto max-w-full rounded-[var(--radius-md)] object-contain shadow-[var(--shadow-lg)]"
             />
           )}
 
