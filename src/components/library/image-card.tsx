@@ -36,14 +36,40 @@ export const THUMB_WIDTH = 480;
  *  apart from "a file from the desktop". */
 export const HERO_DRAG_MIME = "application/x-luminary-image-id";
 
-export function downloadImage(image: ImageRecord) {
-  const a = document.createElement("a");
+export async function downloadImage(image: ImageRecord) {
+  const url = fileUrl(image, { download: true, filename: image.originalName });
+
+  // On mobile (iOS/Android), the browser's <a download> either opens a
+  // "view" popup (iOS Safari) or drops the file in Downloads with no path to
+  // Photos. The Web Share API triggers the native share sheet instead —
+  // iOS shows "Save to Photos" and Android shows its gallery/share options —
+  // which is what mobile users actually expect.
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (isMobile && typeof navigator.canShare === "function") {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const mimeType = blob.type || `image/${image.ext}`;
+      const file = new File([blob], image.originalName, { type: mimeType });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: image.originalName });
+        return;
+      }
+    } catch (err) {
+      // AbortError means the user dismissed the share sheet — that's fine.
+      // Any other failure falls through to the anchor download below.
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+  }
+
+  // Desktop or fallback: anchor-click download.
   // The route's ?ext= fast path (see file/route.ts) skips reading the DB
   // entirely, so it never knew the image's real name and always fell back
   // to a hardcoded "download" — that's why saved files had no extension,
   // showed no preview, and ignored the site's file name. Passing the name
   // through explicitly keeps that fast path while fixing the filename.
-  a.href = fileUrl(image, { download: true, filename: image.originalName });
+  const a = document.createElement("a");
+  a.href = url;
   a.download = image.originalName;
   document.body.appendChild(a);
   a.click();
