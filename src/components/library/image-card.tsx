@@ -37,45 +37,55 @@ export const THUMB_WIDTH = 480;
 export const HERO_DRAG_MIME = "application/x-luminary-image-id";
 
 export async function downloadImage(image: ImageRecord) {
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isMobile = isIOS || isAndroid;
 
   if (isMobile && typeof navigator.share === "function") {
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const downloadUrl = fileUrl(image, { download: true, filename: image.originalName });
 
-    if (isIOS) {
-      // iOS Safari cancels navigator.share() if it's called after any await
-      // (the user-gesture context is consumed by the time fetch resolves).
-      // Sharing the image URL synchronously opens the native share sheet which
-      // shows "Save Image" at the top — one tap saves directly to Photos.
-      const viewUrl = new URL(fileUrl(image), window.location.href).toString();
-      try {
-        await navigator.share({ title: image.originalName, url: viewUrl });
+    try {
+      // Fetch the image through our same-origin proxy (no CORS issues).
+      // On iOS 15.4+, navigator.share() can still be called after a short
+      // await — WebKit keeps the user-activation context alive for ~5 seconds,
+      // long enough for a typical image fetch on WiFi or LTE.
+      const res = await fetch(downloadUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const file = new File([blob], image.originalName, {
+        type: blob.type || `image/${image.ext}`,
+      });
+
+      // File share (iOS 15.4+, Android Chrome): native sheet shows "Save Image"
+      // on iOS and gallery/share options on Android.
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: image.originalName });
         return;
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        // Other error (e.g. share not allowed in this context) — fall through
       }
-    } else {
-      // Android Chrome keeps the user-gesture context alive across await, so
-      // we can fetch the blob first and share it as a File, which gives the
-      // Android share sheet a real image to hand off to Photos/Gallery.
-      try {
-        const downloadUrl = fileUrl(image, { download: true, filename: image.originalName });
-        const res = await fetch(downloadUrl);
-        const blob = await res.blob();
-        const file = new File([blob], image.originalName, { type: blob.type || `image/${image.ext}` });
-        if (navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: image.originalName });
-          return;
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        // Fall through to anchor download
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      // File share unsupported or gesture window expired — fall through to
+      // URL share below (still better than the iOS "View/Download" popup).
+    }
+
+    // Fallback: share the image URL. On iOS this opens the share sheet where
+    // the user can tap "Save to Files" or copy the link. No popup, no anchor.
+    const viewUrl = new URL(fileUrl(image), window.location.href).toString();
+    try {
+      await navigator.share({ title: image.originalName, url: viewUrl });
+      return;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      // If iOS URL share also fails, open image in a new tab so the user can
+      // long-press → "Add to Photos" — still avoids the View/Download popup.
+      if (isIOS) {
+        window.open(viewUrl, "_blank");
+        return;
       }
     }
   }
 
-  // Desktop or fallback: anchor-click download.
+  // Desktop or Android fallback: anchor-click download.
   // The route's ?ext= fast path (see file/route.ts) skips reading the DB
   // entirely, so it never knew the image's real name and always fell back
   // to a hardcoded "download" — that's why saved files had no extension,
