@@ -37,28 +37,41 @@ export const THUMB_WIDTH = 480;
 export const HERO_DRAG_MIME = "application/x-luminary-image-id";
 
 export async function downloadImage(image: ImageRecord) {
-  const url = fileUrl(image, { download: true, filename: image.originalName });
-
-  // On mobile (iOS/Android), the browser's <a download> either opens a
-  // "view" popup (iOS Safari) or drops the file in Downloads with no path to
-  // Photos. The Web Share API triggers the native share sheet instead —
-  // iOS shows "Save to Photos" and Android shows its gallery/share options —
-  // which is what mobile users actually expect.
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  if (isMobile && typeof navigator.canShare === "function") {
-    try {
-      const res = await fetch(url);
-      const blob = await res.blob();
-      const mimeType = blob.type || `image/${image.ext}`;
-      const file = new File([blob], image.originalName, { type: mimeType });
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], title: image.originalName });
+
+  if (isMobile && typeof navigator.share === "function") {
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isIOS) {
+      // iOS Safari cancels navigator.share() if it's called after any await
+      // (the user-gesture context is consumed by the time fetch resolves).
+      // Sharing the image URL synchronously opens the native share sheet which
+      // shows "Save Image" at the top — one tap saves directly to Photos.
+      const viewUrl = new URL(fileUrl(image), window.location.href).toString();
+      try {
+        await navigator.share({ title: image.originalName, url: viewUrl });
         return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Other error (e.g. share not allowed in this context) — fall through
       }
-    } catch (err) {
-      // AbortError means the user dismissed the share sheet — that's fine.
-      // Any other failure falls through to the anchor download below.
-      if (err instanceof DOMException && err.name === "AbortError") return;
+    } else {
+      // Android Chrome keeps the user-gesture context alive across await, so
+      // we can fetch the blob first and share it as a File, which gives the
+      // Android share sheet a real image to hand off to Photos/Gallery.
+      try {
+        const downloadUrl = fileUrl(image, { download: true, filename: image.originalName });
+        const res = await fetch(downloadUrl);
+        const blob = await res.blob();
+        const file = new File([blob], image.originalName, { type: blob.type || `image/${image.ext}` });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: image.originalName });
+          return;
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        // Fall through to anchor download
+      }
     }
   }
 
@@ -69,7 +82,7 @@ export async function downloadImage(image: ImageRecord) {
   // showed no preview, and ignored the site's file name. Passing the name
   // through explicitly keeps that fast path while fixing the filename.
   const a = document.createElement("a");
-  a.href = url;
+  a.href = fileUrl(image, { download: true, filename: image.originalName });
   a.download = image.originalName;
   document.body.appendChild(a);
   a.click();
